@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { MoveOrDrop } from "shogiops/types";
+import { squareFile, squareRank } from "shogiops/util";
 import type { GameState } from "@/lib/shogi-game";
 import { squareToCoords } from "@/lib/shogi-game";
 import type { ArrowData } from "@/components/board";
@@ -96,29 +97,58 @@ export function useAIAssist(
 
 function getTopMoves(game: GameState, count: number): MoveOrDrop[] {
   const pos = game.position;
+  const isSente = pos.turn === "sente";
   const scored: { move: MoveOrDrop; score: number }[] = [];
 
   const moveDests = pos.allMoveDests();
   for (const [from, dests] of moveDests) {
     for (const to of dests) {
+      const move: MoveOrDrop = { from, to };
+      if (!pos.isLegal(move)) continue;
+
       const piece = pos.board.get(from);
       const captured = pos.board.get(to);
-      let score = Math.random() * 20;
+      let score = Math.random() * 5;
+
       if (captured) {
         score += pieceValue(captured.role) * 2;
+        if (piece) score += pieceValue(captured.role) - pieceValue(piece.role);
       }
-      const move: MoveOrDrop = { from, to };
+
       const testPos = pos.clone();
-      if (pos.isLegal(move)) {
-        testPos.play(move);
-        if (testPos.isCheck()) score += 200;
+      testPos.play(move);
+      if (testPos.isCheck()) score += 300;
+
+      if (piece?.role === "pawn") {
+        const file = squareFile(from) + 1;
+        if ((isSente && file === 7) || (!isSente && file === 3)) score += 120;
+        if ((isSente && file === 2) || (!isSente && file === 8)) score += 90;
+        if (file >= 4 && file <= 6) score += 40;
+        if (file === 1 || file === 9) score -= 30;
       }
+
+      if (piece && piece.role !== "pawn" && piece.role !== "king") {
+        const fromRank = squareRank(from);
+        if ((isSente && fromRank >= 6) || (!isSente && fromRank <= 2)) score += 40;
+      }
+
+      const mobility = countMobility(testPos);
+      score += mobility * 0.5;
+
       scored.push({ move, score });
     }
   }
 
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, count).map((s) => s.move);
+}
+
+function countMobility(pos: import("shogiops/variant/shogi").Shogi): number {
+  let count = 0;
+  for (const [, dests] of pos.allMoveDests()) {
+    for (const _ of dests) count++;
+  }
+  return count;
 }
 
 function moveToArrow(

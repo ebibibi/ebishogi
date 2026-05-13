@@ -1,203 +1,83 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import type { MoveOrDrop, Color } from "shogiops/types";
-import { ShogiBoard } from "@/components/board";
-import { useAIAssist } from "@/hooks/useAIAssist";
-import {
-  createGame,
-  applyMoveToGame,
-  usiToMove,
-  type GameState,
-} from "@/lib/shogi-game";
-import { getEngine } from "@/lib/engine";
+import { useState } from "react";
+import { GameView } from "@/components/GameView";
 
 export default function Home() {
-  const [game, setGame] = useState<GameState>(() => createGame());
-  const [playerColor] = useState<Color>("sente");
-  const [aiThinking, setAiThinking] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const abortRef = useRef(false);
+  const [started, setStarted] = useState(false);
 
-  const isPlayerTurn = game.turn === playerColor;
-  const { arrows, badMoveAlert, engineReady } = useAIAssist(
-    game,
-    isPlayerTurn,
-    true,
-  );
-
-  const handleMove = useCallback(
-    (move: MoveOrDrop) => {
-      if (!isPlayerTurn || game.isEnd) return;
-
-      const newGame = applyMoveToGame(game, move);
-      if (!newGame) return;
-
-      setGame(newGame);
-      setMessage(null);
-
-      if (newGame.isCheck && !newGame.isEnd) {
-        setMessage("王手！");
-      }
-
-      if (newGame.isEnd) {
-        const winner = newGame.outcome?.winner;
-        if (winner === playerColor) {
-          setMessage("あなたの勝ち！");
-        } else if (winner) {
-          setMessage("CPUの勝ち...");
-        } else {
-          setMessage("引き分け");
-        }
-      }
-    },
-    [game, isPlayerTurn, playerColor],
-  );
-
-  useEffect(() => {
-    if (game.isEnd || isPlayerTurn || aiThinking) return;
-
-    setAiThinking(true);
-    abortRef.current = false;
-
-    const playCpuMove = async () => {
-      try {
-        const engine = getEngine();
-        const result = await engine.search(game.sfen, {
-          multiPV: 1,
-          timeMs: 500,
-        });
-
-        if (abortRef.current) return;
-
-        const usi = result.bestmove;
-        if (!usi) return;
-
-        const move = usiToMove(usi);
-        if (!move) return;
-
-        const newGame = applyMoveToGame(game, move);
-        if (!newGame) return;
-
-        setGame(newGame);
-
-        if (newGame.isCheck && !newGame.isEnd) {
-          setMessage("王手！");
-        }
-        if (newGame.isEnd) {
-          const winner = newGame.outcome?.winner;
-          if (winner === playerColor) {
-            setMessage("あなたの勝ち！");
-          } else if (winner) {
-            setMessage("CPUの勝ち...");
-          } else {
-            setMessage("引き分け");
-          }
-        }
-      } catch {
-        // Engine not available - skip CPU turn
-      } finally {
-        if (!abortRef.current) setAiThinking(false);
-      }
-    };
-
-    playCpuMove();
-
-    return () => {
-      abortRef.current = true;
-    };
-  }, [game, isPlayerTurn, aiThinking, playerColor]);
-
-  const handleReset = useCallback(() => {
-    abortRef.current = true;
-    getEngine().cancelSearch();
-    setGame(createGame());
-    setMessage(null);
-    setAiThinking(false);
-  }, []);
-
-  const checkSquare = game.isCheck ? findKingSquare(game, game.turn) : null;
+  if (started) {
+    return <GameView onBack={() => setStarted(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-8">
-      <h1 className="text-3xl font-bold mb-1">ebishogi</h1>
-      <p className="text-zinc-400 mb-6 text-sm">
-        AI-assisted shogi learning
-      </p>
+      <div className="max-w-md w-full flex flex-col items-center gap-8">
+        <div className="text-center">
+          <h1 className="text-5xl font-bold tracking-tight mb-2">ebishogi</h1>
+          <p className="text-zinc-400 text-lg">
+            AIと一緒に将棋を学ぼう
+          </p>
+        </div>
 
-      <ShogiBoard
-        position={game.position}
-        orientation={playerColor}
-        arrows={arrows}
-        onMove={handleMove}
-        lastMove={game.lastMove}
-        interactive={isPlayerTurn && !game.isEnd}
-        checkSquare={checkSquare ?? undefined}
-      />
-
-      <div className="mt-4 flex flex-col items-center gap-2">
-        {badMoveAlert && (
-          <div
-            className={`text-lg font-bold px-4 py-2 rounded-lg animate-bounce ${
-              badMoveAlert.severity === "blunder"
-                ? "bg-red-700/40 text-red-200"
-                : badMoveAlert.severity === "mistake"
-                  ? "bg-orange-600/40 text-orange-200"
-                  : "bg-yellow-600/30 text-yellow-200"
-            }`}
-          >
-            {badMoveAlert.message}
-          </div>
-        )}
-
-        {message && (
-          <div
-            className={`text-lg font-bold px-4 py-2 rounded-lg ${
-              message.includes("勝ち")
-                ? "bg-yellow-600/30 text-yellow-300"
-                : message.includes("王手")
-                  ? "bg-red-600/30 text-red-300"
-                  : "bg-gray-600/30 text-gray-300"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-
-        <div className="flex items-center gap-4 text-sm text-zinc-400">
-          <span>
-            {game.turn === "sente" ? "先手" : "後手"}の番
-          </span>
-          <span>手数: {game.moveCount}</span>
-          {!engineReady && (
-            <span className="text-amber-400 animate-pulse">
-              AIエンジン読込中...
+        <div className="w-full space-y-4 text-sm">
+          <div className="bg-zinc-800/60 rounded-xl p-4 flex gap-3 items-start">
+            <span className="text-2xl shrink-0 mt-0.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6 text-amber-400">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+              </svg>
             </span>
-          )}
-          {aiThinking && engineReady && (
-            <span className="text-sky-400 animate-pulse">
-              CPU思考中...
+            <div>
+              <p className="font-semibold text-zinc-200">AIが候補手を提案</p>
+              <p className="text-zinc-400 mt-0.5">
+                考え中に盤上に矢印で候補手を表示。プロ級AIエンジンが最善手を教えてくれます
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-zinc-800/60 rounded-xl p-4 flex gap-3 items-start">
+            <span className="text-2xl shrink-0 mt-0.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6 text-red-400">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
             </span>
-          )}
+            <div>
+              <p className="font-semibold text-zinc-200">悪手をリアルタイム警告</p>
+              <p className="text-zinc-400 mt-0.5">
+                悪い手を指すとすぐに「悪手」「大悪手」と教えてくれるので、同じミスを繰り返しません
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-zinc-800/60 rounded-xl p-4 flex gap-3 items-start">
+            <span className="text-2xl shrink-0 mt-0.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6 text-sky-400">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </span>
+            <div>
+              <p className="font-semibold text-zinc-200">ブラウザだけで動作</p>
+              <p className="text-zinc-400 mt-0.5">
+                将棋AIエンジン（YaneuraOu）がブラウザ内で動くので、インストール不要。すぐに遊べます
+              </p>
+            </div>
+          </div>
         </div>
 
         <button
-          onClick={handleReset}
-          className="mt-2 px-4 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+          onClick={() => setStarted(true)}
+          className="w-full py-4 text-lg font-bold bg-amber-600 hover:bg-amber-500 active:bg-amber-700 rounded-xl transition-colors"
           type="button"
         >
-          新しい対局
+          対局を始める
         </button>
+
+        <p className="text-xs text-zinc-500 text-center">
+          初回はAIエンジン（約200KB）のダウンロードに数秒かかります。
+          <br />
+          対局はすべてブラウザ内で処理され、サーバーに情報は送信されません。
+        </p>
       </div>
     </div>
   );
-}
-
-function findKingSquare(
-  game: GameState,
-  color: Color,
-): number | null {
-  const kings = game.position.kingsOf(color);
-  for (const sq of kings) return sq;
-  return null;
 }

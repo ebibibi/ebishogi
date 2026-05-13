@@ -1,6 +1,6 @@
 import { Shogi } from "shogiops/variant/shogi";
 import { parseSfen, makeSfen } from "shogiops/sfen";
-import { parseSquareName, makeSquareName, squareFile, squareRank } from "shogiops/util";
+import { parseSquareName, makeSquareName, squareFile, squareRank, parseCoordinates } from "shogiops/util";
 import type { MoveOrDrop, Square, Color, Role, Piece } from "shogiops/types";
 import type { SquareSet } from "shogiops/square-set";
 
@@ -77,7 +77,7 @@ export function squareToCoords(sq: Square): { file: number; rank: number } {
 }
 
 export function coordsToSquare(file: number, rank: number): Square {
-  return (file - 1) + (rank - 1) * 9;
+  return parseCoordinates(file - 1, rank - 1) as Square;
 }
 
 export function canPromote(pos: Shogi, from: Square, to: Square): boolean {

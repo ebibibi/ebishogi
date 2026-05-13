@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { parseUsi } from "shogiops/util";
 import type { GameState } from "@/lib/shogi-game";
 import { squareToCoords } from "@/lib/shogi-game";
@@ -13,10 +13,11 @@ export type BadMoveAlert = {
   severity: "blunder" | "mistake" | "inaccuracy";
 };
 
-type AIAssistState = {
+type AIAssistResult = {
   arrows: ArrowData[];
   badMoveAlert: BadMoveAlert | null;
   engineReady: boolean;
+  evaluatePlayerMove: (cpuScore: number) => void;
 };
 
 const ARROW_STYLES = [
@@ -49,7 +50,7 @@ export function useAIAssist(
   game: GameState,
   isPlayerTurn: boolean,
   enabled: boolean,
-): AIAssistState {
+): AIAssistResult {
   const [arrows, setArrows] = useState<ArrowData[]>([]);
   const [badMoveAlert, setBadMoveAlert] = useState<BadMoveAlert | null>(null);
   const [engineReady, setEngineReady] = useState(false);
@@ -107,47 +108,33 @@ export function useAIAssist(
   }, [game, isPlayerTurn, enabled, engineReady]);
 
   useEffect(() => {
-    if (!enabled || isPlayerTurn) {
-      setBadMoveAlert(null);
-      return;
-    }
+    if (isPlayerTurn) setBadMoveAlert(null);
+  }, [isPlayerTurn]);
 
-    if (game.moveCount <= 1) {
-      prevEvalRef.current = 0;
-      return;
-    }
+  const evaluatePlayerMove = useCallback(
+    (cpuScore: number) => {
+      if (game.moveCount <= 1) {
+        prevEvalRef.current = 0;
+        return;
+      }
+      const prevEval = prevEvalRef.current;
+      if (prevEval === null) return;
 
-    if (!engineReady) return;
+      const playerScoreAfter = -cpuScore;
+      const change = playerScoreAfter - prevEval;
 
-    let cancelled = false;
+      if (change < -500) {
+        setBadMoveAlert({ message: "大悪手！", severity: "blunder" });
+      } else if (change < -200) {
+        setBadMoveAlert({ message: "悪手", severity: "mistake" });
+      } else if (change < -100) {
+        setBadMoveAlert({ message: "疑問手", severity: "inaccuracy" });
+      } else {
+        setBadMoveAlert(null);
+      }
+    },
+    [game.moveCount],
+  );
 
-    getEngine()
-      .search(game.sfen, { multiPV: 1, depth: 8 })
-      .then((result) => {
-        if (cancelled) return;
-        const prevEval = prevEvalRef.current;
-        if (prevEval === null || result.candidates.length === 0) return;
-
-        const cpuScore = result.candidates[0].score;
-        const playerScoreAfter = -cpuScore;
-        const change = playerScoreAfter - prevEval;
-
-        if (change < -500) {
-          setBadMoveAlert({ message: "大悪手！", severity: "blunder" });
-        } else if (change < -200) {
-          setBadMoveAlert({ message: "悪手", severity: "mistake" });
-        } else if (change < -100) {
-          setBadMoveAlert({ message: "疑問手", severity: "inaccuracy" });
-        } else {
-          setBadMoveAlert(null);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [game, isPlayerTurn, enabled, engineReady]);
-
-  return { arrows, badMoveAlert, engineReady };
+  return { arrows, badMoveAlert, engineReady, evaluatePlayerMove };
 }

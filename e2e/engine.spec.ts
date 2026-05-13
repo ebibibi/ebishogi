@@ -49,6 +49,22 @@ test.describe("ebishogi", () => {
     ).toBeVisible();
   });
 
+  test("CPU responds after player move", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "対局を始める" }).click();
+    await expect(page.getByText("先手の番")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("AIエンジン読込中...")).toBeHidden({
+      timeout: 30_000,
+    });
+
+    const squares = page.locator(".grid-cols-9 button");
+    await squares.nth(56).click();
+    await squares.nth(47).click();
+
+    await expect(page.getByText(/手数: [3-9]/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("先手の番")).toBeVisible();
+  });
+
   test("can return to landing page", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "対局を始める" }).click();

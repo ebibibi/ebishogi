@@ -19,8 +19,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   const abortRef = useRef(false);
 
+  const aiThinkingRef = useRef(false);
+
   const isPlayerTurn = game.turn === playerColor;
-  const { arrows, badMoveAlert, engineReady } = useAIAssist(
+  const { arrows, badMoveAlert, engineReady, evaluatePlayerMove } = useAIAssist(
     game,
     isPlayerTurn,
     true,
@@ -55,8 +57,9 @@ export function GameView({ onBack }: { onBack: () => void }) {
   );
 
   useEffect(() => {
-    if (game.isEnd || isPlayerTurn || aiThinking) return;
+    if (game.isEnd || isPlayerTurn || aiThinkingRef.current) return;
 
+    aiThinkingRef.current = true;
     setAiThinking(true);
     abortRef.current = false;
 
@@ -69,6 +72,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
         });
 
         if (abortRef.current) return;
+
+        if (result.candidates.length > 0) {
+          evaluatePlayerMove(result.candidates[0].score);
+        }
 
         const usi = result.bestmove;
         if (!usi) return;
@@ -97,6 +104,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
       } catch {
         // Engine not available
       } finally {
+        aiThinkingRef.current = false;
         if (!abortRef.current) setAiThinking(false);
       }
     };
@@ -106,10 +114,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
     return () => {
       abortRef.current = true;
     };
-  }, [game, isPlayerTurn, aiThinking, playerColor]);
+  }, [game, isPlayerTurn, playerColor, evaluatePlayerMove]);
 
   const handleReset = useCallback(() => {
     abortRef.current = true;
+    aiThinkingRef.current = false;
     getEngine().cancelSearch();
     setGame(createGame());
     setMessage(null);

@@ -19,13 +19,6 @@ type SearchOptions = {
   readonly onInfo?: (candidates: readonly CandidateMove[]) => void;
 };
 
-interface YaneuraOuModule {
-  addMessageListener: (listener: (line: string) => void) => void;
-  removeMessageListener: (listener: (line: string) => void) => void;
-  postMessage: (command: string) => void;
-  terminate: () => void;
-}
-
 type ActiveSearch = {
   candidates: Map<number, CandidateMove>;
   onInfo?: (candidates: readonly CandidateMove[]) => void;
@@ -80,14 +73,15 @@ function parseInfoLine(line: string): {
 }
 
 class ShogiEngine {
-  private module: YaneuraOuModule | null = null;
+  private worker: Worker | null = null;
   private initPromise: Promise<void> | null = null;
   private active: ActiveSearch | null = null;
   private waitingForStop = false;
   private queued: QueuedSearch | null = null;
+  private tempListeners: ((line: string) => void)[] = [];
 
   async init(): Promise<void> {
-    if (this.module) return;
+    if (this.worker) return;
     if (this.initPromise) return this.initPromise;
     this.initPromise = this.doInit();
     return this.initPromise;
@@ -98,52 +92,71 @@ class ShogiEngine {
       throw new Error("SharedArrayBuffer not available");
     }
 
+    const worker = new Worker("/engine/engine-worker.js");
+    this.worker = worker;
+
     await new Promise<void>((resolve, reject) => {
-      if ((globalThis as any).YaneuraOu_HalfKP) {
-        resolve();
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "/engine/yaneuraou.halfkp.js";
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load engine script"));
-      document.head.appendChild(script);
+      const timeout = setTimeout(() => {
+        reject(new Error("Engine worker init timeout"));
+      }, 30000);
+
+      const handler = (e: MessageEvent) => {
+        if (e.data.type === "ready") {
+          clearTimeout(timeout);
+          worker.removeEventListener("message", handler);
+          resolve();
+        } else if (e.data.type === "error") {
+          clearTimeout(timeout);
+          worker.removeEventListener("message", handler);
+          reject(new Error(e.data.message));
+        }
+      };
+
+      worker.addEventListener("message", handler);
     });
 
-    const factory = (globalThis as any).YaneuraOu_HalfKP;
-    if (!factory) throw new Error("Engine factory not found");
-
-    this.module = (await factory({
-      locateFile: (file: string) => `/engine/${file}`,
-    })) as YaneuraOuModule;
-
-    this.module.addMessageListener((line: string) => this.onMessage(line));
+    worker.addEventListener("message", (e: MessageEvent) => {
+      if (e.data.type === "engine-output") {
+        const line = e.data.line as string;
+        for (const listener of [...this.tempListeners]) {
+          listener(line);
+        }
+        this.onMessage(line);
+      }
+    });
 
     await this.waitForResponse("usi", "usiok");
 
-    this.module.postMessage("setoption name Threads value 1");
-    this.module.postMessage("setoption name USI_Hash value 16");
-    this.module.postMessage("setoption name BookFile value no_book");
+    this.send("setoption name Threads value 1");
+    this.send("setoption name USI_Hash value 16");
+    this.send("setoption name BookFile value no_book");
 
     await this.waitForResponse("isready", "readyok");
+  }
+
+  private send(command: string): void {
+    this.worker?.postMessage({ type: "command", command });
   }
 
   private waitForResponse(command: string, expected: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.module?.removeMessageListener(listener);
+        const idx = this.tempListeners.indexOf(listener);
+        if (idx >= 0) this.tempListeners.splice(idx, 1);
         reject(new Error(`Timeout waiting for ${expected}`));
       }, 30000);
 
       const listener = (line: string) => {
         if (line.trim() === expected) {
           clearTimeout(timeout);
-          this.module?.removeMessageListener(listener);
+          const idx = this.tempListeners.indexOf(listener);
+          if (idx >= 0) this.tempListeners.splice(idx, 1);
           resolve();
         }
       };
-      this.module!.addMessageListener(listener);
-      this.module!.postMessage(command);
+
+      this.tempListeners.push(listener);
+      this.send(command);
     });
   }
 
@@ -154,7 +167,7 @@ class ShogiEngine {
       if (this.active) {
         this.active.resolve({ bestmove: "", candidates: [] });
         this.active = null;
-        this.module!.postMessage("stop");
+        this.send("stop");
         this.waitingForStop = true;
       }
 
@@ -177,7 +190,7 @@ class ShogiEngine {
     if (this.active) {
       this.active.resolve({ bestmove: "", candidates: [] });
       this.active = null;
-      this.module?.postMessage("stop");
+      this.send("stop");
       this.waitingForStop = true;
     }
   }
@@ -195,13 +208,13 @@ class ShogiEngine {
       resolve,
     };
 
-    this.module!.postMessage(`setoption name MultiPV value ${multiPV}`);
-    this.module!.postMessage(`position sfen ${sfen}`);
+    this.send(`setoption name MultiPV value ${multiPV}`);
+    this.send(`position sfen ${sfen}`);
 
     if (options.depth) {
-      this.module!.postMessage(`go depth ${options.depth}`);
+      this.send(`go depth ${options.depth}`);
     } else {
-      this.module!.postMessage(`go movetime ${options.timeMs ?? 1000}`);
+      this.send(`go movetime ${options.timeMs ?? 1000}`);
     }
   }
 
@@ -253,12 +266,13 @@ class ShogiEngine {
 
   dispose(): void {
     this.cancelSearch();
-    if (this.module) {
-      this.module.postMessage("quit");
-      this.module.terminate();
-      this.module = null;
+    if (this.worker) {
+      this.send("quit");
+      this.worker.terminate();
+      this.worker = null;
     }
     this.initPromise = null;
+    this.tempListeners = [];
   }
 }
 

@@ -7,21 +7,24 @@ import { useAIAssist } from "@/hooks/useAIAssist";
 import {
   createGame,
   applyMoveToGame,
-  getAIMove,
+  usiToMove,
   type GameState,
-  type SimpleAILevel,
 } from "@/lib/shogi-game";
+import { getEngine } from "@/lib/engine";
 
 export default function Home() {
   const [game, setGame] = useState<GameState>(() => createGame());
   const [playerColor] = useState<Color>("sente");
-  const [aiLevel] = useState<SimpleAILevel>("basic");
   const [aiThinking, setAiThinking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef(false);
 
   const isPlayerTurn = game.turn === playerColor;
-  const { arrows, badMoveAlert } = useAIAssist(game, isPlayerTurn, true);
+  const { arrows, badMoveAlert, engineReady } = useAIAssist(
+    game,
+    isPlayerTurn,
+    true,
+  );
 
   const handleMove = useCallback(
     (move: MoveOrDrop) => {
@@ -55,44 +58,65 @@ export default function Home() {
     if (game.isEnd || isPlayerTurn || aiThinking) return;
 
     setAiThinking(true);
-    aiTimerRef.current = setTimeout(() => {
-      const aiMove = getAIMove(game, aiLevel);
-      if (aiMove) {
-        const newGame = applyMoveToGame(game, aiMove);
-        if (newGame) {
-          setGame(newGame);
-          if (newGame.isCheck && !newGame.isEnd) {
-            setMessage("王手！");
-          }
-          if (newGame.isEnd) {
-            const winner = newGame.outcome?.winner;
-            if (winner === playerColor) {
-              setMessage("あなたの勝ち！");
-            } else if (winner) {
-              setMessage("CPUの勝ち...");
-            } else {
-              setMessage("引き分け");
-            }
+    abortRef.current = false;
+
+    const playCpuMove = async () => {
+      try {
+        const engine = getEngine();
+        const result = await engine.search(game.sfen, {
+          multiPV: 1,
+          timeMs: 500,
+        });
+
+        if (abortRef.current) return;
+
+        const usi = result.bestmove;
+        if (!usi) return;
+
+        const move = usiToMove(usi);
+        if (!move) return;
+
+        const newGame = applyMoveToGame(game, move);
+        if (!newGame) return;
+
+        setGame(newGame);
+
+        if (newGame.isCheck && !newGame.isEnd) {
+          setMessage("王手！");
+        }
+        if (newGame.isEnd) {
+          const winner = newGame.outcome?.winner;
+          if (winner === playerColor) {
+            setMessage("あなたの勝ち！");
+          } else if (winner) {
+            setMessage("CPUの勝ち...");
+          } else {
+            setMessage("引き分け");
           }
         }
+      } catch {
+        // Engine not available - skip CPU turn
+      } finally {
+        if (!abortRef.current) setAiThinking(false);
       }
-      setAiThinking(false);
-    }, 500);
+    };
+
+    playCpuMove();
 
     return () => {
-      if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+      abortRef.current = true;
     };
-  }, [game, isPlayerTurn, aiThinking, aiLevel, playerColor]);
+  }, [game, isPlayerTurn, aiThinking, playerColor]);
 
   const handleReset = useCallback(() => {
-    if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    abortRef.current = true;
+    getEngine().cancelSearch();
     setGame(createGame());
     setMessage(null);
     setAiThinking(false);
   }, []);
 
-  const checkSquare =
-    game.isCheck ? findKingSquare(game, game.turn) : null;
+  const checkSquare = game.isCheck ? findKingSquare(game, game.turn) : null;
 
   return (
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-8">
@@ -145,7 +169,12 @@ export default function Home() {
             {game.turn === "sente" ? "先手" : "後手"}の番
           </span>
           <span>手数: {game.moveCount}</span>
-          {aiThinking && (
+          {!engineReady && (
+            <span className="text-amber-400 animate-pulse">
+              AIエンジン読込中...
+            </span>
+          )}
+          {aiThinking && engineReady && (
             <span className="text-sky-400 animate-pulse">
               CPU思考中...
             </span>

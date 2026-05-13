@@ -1,6 +1,6 @@
 import { Shogi } from "shogiops/variant/shogi";
 import { parseSfen, makeSfen } from "shogiops/sfen";
-import { parseSquareName, makeSquareName, squareFile, squareRank, parseCoordinates } from "shogiops/util";
+import { squareFile, squareRank, parseCoordinates, parseUsi } from "shogiops/util";
 import type { MoveOrDrop, Square, Color, Role, Piece } from "shogiops/types";
 import type { SquareSet } from "shogiops/square-set";
 
@@ -116,88 +116,6 @@ export function getHandPieces(pos: Shogi, color: Color): Map<Role, number> {
   return result;
 }
 
-export type SimpleAILevel = "random" | "basic";
-
-export function getAIMove(state: GameState, level: SimpleAILevel): MoveOrDrop | null {
-  if (state.isEnd) return null;
-
-  const allMoves = collectAllLegalMoves(state);
-  if (allMoves.length === 0) return null;
-
-  if (level === "random") {
-    return allMoves[Math.floor(Math.random() * allMoves.length)];
-  }
-
-  return pickBasicAIMove(state, allMoves);
-}
-
-function collectAllLegalMoves(state: GameState): MoveOrDrop[] {
-  const moves: MoveOrDrop[] = [];
-  const pos = state.position;
-
-  const moveDests = pos.allMoveDests();
-  for (const [from, dests] of moveDests) {
-    for (const to of dests) {
-      const piece = pos.board.get(from);
-      if (piece && canPromote(pos, from, to)) {
-        if (mustPromote(pos, from, to)) {
-          moves.push({ from, to, promotion: true });
-        } else {
-          moves.push({ from, to, promotion: true });
-          moves.push({ from, to, promotion: false });
-        }
-      } else {
-        moves.push({ from, to });
-      }
-    }
-  }
-
-  const dropDests = pos.allDropDests();
-  for (const [pieceName, dests] of dropDests) {
-    const role = pieceName.split(" ")[1] as Role;
-    for (const to of dests) {
-      moves.push({ role, to });
-    }
-  }
-
-  return moves;
-}
-
-const PIECE_VALUES: Record<string, number> = {
-  pawn: 100, lance: 300, knight: 350, silver: 450,
-  gold: 500, bishop: 700, rook: 800,
-  tokin: 500, promotedlance: 500, promotedknight: 500, promotedsilver: 500,
-  horse: 1000, dragon: 1100, king: 10000,
-};
-
-function pickBasicAIMove(state: GameState, allMoves: MoveOrDrop[]): MoveOrDrop {
-  let bestMove = allMoves[0];
-  let bestScore = -Infinity;
-
-  for (const move of allMoves) {
-    let score = Math.random() * 50;
-
-    if ("from" in move) {
-      const captured = state.position.board.get(move.to);
-      if (captured) {
-        score += (PIECE_VALUES[captured.role] ?? 0) * 2;
-      }
-      if (move.promotion) score += 200;
-    } else {
-      score += 100;
-    }
-
-    const testPos = state.position.clone();
-    testPos.play(move);
-    if (testPos.isCheck()) score += 300;
-    const opponentOutcome = testPos.outcome();
-    if (opponentOutcome?.winner === state.turn) score += 50000;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = move;
-    }
-  }
-
-  return bestMove;
+export function usiToMove(usi: string): MoveOrDrop | undefined {
+  return parseUsi(usi);
 }

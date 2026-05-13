@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@mizarjp/yaneuraou.halfkp':
+        specifier: 7.6.3-alpha.0
+        version: 7.6.3-alpha.0
       next:
         specifier: 16.2.6
         version: 16.2.6(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -367,6 +370,10 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@mizarjp/yaneuraou.halfkp@7.6.3-alpha.0':
+    resolution: {integrity: sha512-nEzNy3c2W0BnJXdmOGo+m7pLlourIAAqihNpRURRieCBYolxtMtTh/48wFKWXR/8GcUAiTmAovL8Uyo4gQn3VA==}
+    hasBin: true
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
@@ -2287,6 +2294,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@mizarjp/yaneuraou.halfkp@7.6.3-alpha.0': {}
 
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:

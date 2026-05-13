@@ -14,9 +14,14 @@ export default function Home() {
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-8">
       <div className="max-w-md w-full flex flex-col items-center gap-8">
         <div className="text-center">
-          <h1 className="text-5xl font-bold tracking-tight mb-2">ebishogi</h1>
-          <p className="text-zinc-400 text-lg">
-            AIと一緒に将棋を学ぼう
+          <h1 className="text-5xl font-bold tracking-tight mb-3">ebishogi</h1>
+          <p className="text-zinc-300 text-lg font-medium">
+            指しながら、強くなる
+          </p>
+          <p className="text-zinc-500 text-sm mt-2 leading-relaxed max-w-sm mx-auto">
+            対局が終わってから振り返るのではなく、
+            一手一手にAIがリアルタイムで寄り添う。
+            対局しながら感想戦をしているような、新しい将棋の学び方。
           </p>
         </div>
 
@@ -28,9 +33,9 @@ export default function Home() {
               </svg>
             </span>
             <div>
-              <p className="font-semibold text-zinc-200">AIが候補手を提案</p>
+              <p className="font-semibold text-zinc-200">段階的にヒントが現れる</p>
               <p className="text-zinc-400 mt-0.5">
-                考え中に盤上に矢印で候補手を表示。プロ級AIエンジンが最善手を教えてくれます
+                すぐに答えは出しません。長考していると3番手、2番手、1番手の順に候補手が盤上に現れます。まず自分で考えてから確認できます
               </p>
             </div>
           </div>
@@ -42,9 +47,9 @@ export default function Home() {
               </svg>
             </span>
             <div>
-              <p className="font-semibold text-zinc-200">悪手をリアルタイム警告</p>
+              <p className="font-semibold text-zinc-200">悪手をその場で指摘</p>
               <p className="text-zinc-400 mt-0.5">
-                悪い手を指すとすぐに「悪手」「大悪手」と教えてくれるので、同じミスを繰り返しません
+                悪い手を指すと「悪手」「大悪手」とすぐにフィードバック。対局後の分析を待たずに、その瞬間に気づきを得られます
               </p>
             </div>
           </div>
@@ -58,7 +63,7 @@ export default function Home() {
             <div>
               <p className="font-semibold text-zinc-200">ブラウザだけで動作</p>
               <p className="text-zinc-400 mt-0.5">
-                将棋AIエンジン（YaneuraOu）がブラウザ内で動くので、インストール不要。すぐに遊べます
+                将棋AIエンジンがブラウザ内で動くので、インストール不要。開いてすぐに遊べます
               </p>
             </div>
           </div>

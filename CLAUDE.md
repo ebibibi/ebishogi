@@ -20,8 +20,9 @@ ebishogi/
 - **スタイリング**: Tailwind CSS
 - **パッケージ管理**: pnpm + Turborepo
 - **将棋エンジン**: YaneuraOu WASM（クライアントサイド、Web Worker）
-- **盤面UI**: 自前実装（GPL回避のためshogiground不使用）
-- **将棋ルール**: 自前実装（GPL回避のためshogiops不使用）
+- **将棋ルール**: shogiops（GPL-3.0、合法手判定・局面管理）
+- **盤面UI**: 自前Reactコンポーネント（shogiopsのデータを使用）
+- **ライセンス**: GPL-3.0（オープンソース公開）
 
 ## 開発コマンド
 
@@ -39,18 +40,17 @@ pnpm --filter @ebishogi/shogi-core run build  # コアのみビルド
 - **shogi-core はUI無依存**: Node.jsでもブラウザでも動く。将来の対人戦でサーバーサイドの手検証に使う
 - **GameConnection インターフェース**: CPU戦（LocalGameConnection）と対人戦（WebSocketGameConnection）を同じAPIで扱えるように設計
 - **クライアント完結**: CPU戦ではサーバー不要。エンジンはブラウザ内WebWorkerで動作
-- **GPL回避**: shogiground/shogiopsはGPL-3.0のため不使用。同等機能を自前実装
+- **GPL-3.0 オープンソース**: shogiops等のGPLライブラリを活用。ソースは公開
 
-## ライセンス注意
+## ライセンス
 
-- このリポジトリはプライベート
-- lishogiのコードを読んで設計を参考にしているが、コードのコピーはしていない
-- YaneuraOu WASMはGPL-3.0 — 将来的にWASMバイナリの扱いを確認する必要あり
+GPL-3.0。このリポジトリはパブリック。広告付き無料サービスとして運営。
 
-## コーディング規約
+## デプロイ
 
-`~/.claude/rules/` の共通ルールに従う。
+- Cloudflare Pages（静的エクスポート）
+- ドメイン: shogi.ebisuda.net
 
 ## 言語
 
-プライベートリポジトリのため日本語。
+パブリックリポジトリだが個人プロジェクトのため日本語。

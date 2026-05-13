@@ -1,63 +1,64 @@
-import type { Color, Hand, PieceType } from "@ebishogi/shogi-core";
-import { PIECE_KANJI } from "@ebishogi/shogi-core";
+"use client";
 
-const HAND_ORDER: PieceType[] = [
-  "rook",
-  "bishop",
-  "gold",
-  "silver",
-  "knight",
-  "lance",
-  "pawn",
+import type { Color, Role } from "shogiops/types";
+
+const ROLE_KANJI: Record<string, string> = {
+  rook: "飛", bishop: "角", gold: "金", silver: "銀",
+  knight: "桂", lance: "香", pawn: "歩",
+};
+
+const HAND_ORDER: Role[] = [
+  "rook", "bishop", "gold", "silver", "knight", "lance", "pawn",
 ];
 
-type HandPanelProps = {
-  hand: Hand;
+type Props = {
+  pieces: Map<Role, number>;
   color: Color;
   isActive: boolean;
-  selectedDrop: PieceType | null;
-  onPieceClick: (pieceType: PieceType) => void;
+  selectedDrop: Role | null;
+  onPieceClick: (role: Role) => void;
 };
 
 export function HandPanel({
-  hand,
+  pieces,
   color,
   isActive,
   selectedDrop,
   onPieceClick,
-}: HandPanelProps) {
-  const hasPieces = HAND_ORDER.some((pt) => hand[pt] > 0);
+}: Props) {
+  const hasPieces = pieces.size > 0;
 
   return (
     <div
       className={`
         flex flex-col gap-1 p-2 rounded-lg min-w-16
-        ${isActive ? "bg-blue-50 ring-2 ring-blue-300" : "bg-gray-50"}
+        ${isActive ? "bg-sky-50 ring-2 ring-sky-300" : "bg-gray-100"}
       `}
     >
       <div className="text-xs text-center text-gray-500 mb-1">
         {color === "sente" ? "先手" : "後手"}
       </div>
       {hasPieces ? (
-        HAND_ORDER.map((pt) => {
-          if (hand[pt] <= 0) return null;
-          const isSelected = selectedDrop === pt;
+        HAND_ORDER.map((role) => {
+          const count = pieces.get(role);
+          if (!count) return null;
+          const isSelected = selectedDrop === role;
           return (
             <button
-              key={pt}
+              key={role}
               className={`
                 flex items-center gap-1 px-2 py-1 rounded text-sm
                 transition-colors duration-100
-                ${isSelected ? "bg-blue-300/60" : "hover:bg-gray-200"}
+                ${isSelected ? "bg-sky-300/60 ring-1 ring-sky-400" : "hover:bg-gray-200"}
                 ${isActive ? "cursor-pointer" : "cursor-default opacity-60"}
               `}
-              onClick={() => isActive && onPieceClick(pt)}
+              onClick={() => isActive && onPieceClick(role)}
               type="button"
               disabled={!isActive}
             >
-              <span className="font-bold">{PIECE_KANJI[pt]}</span>
-              {hand[pt] > 1 && (
-                <span className="text-xs text-gray-500">{hand[pt]}</span>
+              <span className="font-bold">{ROLE_KANJI[role] ?? role}</span>
+              {count > 1 && (
+                <span className="text-xs text-gray-500">{count}</span>
               )}
             </button>
           );

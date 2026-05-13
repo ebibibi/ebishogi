@@ -1,64 +1,174 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { createInitialPosition, applyMove } from "@ebishogi/shogi-core";
-import type { Move, Position } from "@ebishogi/shogi-core";
+import { useState, useCallback, useEffect, useRef } from "react";
+import type { MoveOrDrop, Color } from "shogiops/types";
 import { ShogiBoard } from "@/components/board";
-import type { ArrowData } from "@/components/board";
+import { useAIAssist } from "@/hooks/useAIAssist";
+import {
+  createGame,
+  applyMoveToGame,
+  getAIMove,
+  type GameState,
+  type SimpleAILevel,
+} from "@/lib/shogi-game";
 
 export default function Home() {
-  const [position, setPosition] = useState<Position>(createInitialPosition);
-  const [lastMove, setLastMove] = useState<{ from?: { file: number; rank: number }; to: { file: number; rank: number } } | undefined>();
+  const [game, setGame] = useState<GameState>(() => createGame());
+  const [playerColor] = useState<Color>("sente");
+  const [aiLevel] = useState<SimpleAILevel>("basic");
+  const [aiThinking, setAiThinking] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleMove = useCallback((move: Move) => {
-    try {
-      const newPosition = applyMove(position, move);
-      setPosition(newPosition);
-      setLastMove(
-        move.type === "board"
-          ? { from: move.from, to: move.to }
-          : { to: move.to },
-      );
-    } catch {
-      // invalid move
-    }
-  }, [position]);
+  const isPlayerTurn = game.turn === playerColor;
+  const { arrows, badMoveAlert } = useAIAssist(game, isPlayerTurn, true);
 
-  const demoArrows: ArrowData[] = [
-    { from: { file: 7, rank: 7 }, to: { file: 7, rank: 6 }, color: "#d4af37", opacity: 0.8, width: 4 },
-    { from: { file: 3, rank: 7 }, to: { file: 3, rank: 6 }, color: "#c0c0c0", opacity: 0.5, width: 3 },
-    { from: { file: 2, rank: 8 }, to: { file: 6, rank: 4 }, color: "#a08060", opacity: 0.3, width: 2 },
-  ];
+  const handleMove = useCallback(
+    (move: MoveOrDrop) => {
+      if (!isPlayerTurn || game.isEnd) return;
+
+      const newGame = applyMoveToGame(game, move);
+      if (!newGame) return;
+
+      setGame(newGame);
+      setMessage(null);
+
+      if (newGame.isCheck && !newGame.isEnd) {
+        setMessage("王手！");
+      }
+
+      if (newGame.isEnd) {
+        const winner = newGame.outcome?.winner;
+        if (winner === playerColor) {
+          setMessage("あなたの勝ち！");
+        } else if (winner) {
+          setMessage("CPUの勝ち...");
+        } else {
+          setMessage("引き分け");
+        }
+      }
+    },
+    [game, isPlayerTurn, playerColor],
+  );
+
+  useEffect(() => {
+    if (game.isEnd || isPlayerTurn || aiThinking) return;
+
+    setAiThinking(true);
+    aiTimerRef.current = setTimeout(() => {
+      const aiMove = getAIMove(game, aiLevel);
+      if (aiMove) {
+        const newGame = applyMoveToGame(game, aiMove);
+        if (newGame) {
+          setGame(newGame);
+          if (newGame.isCheck && !newGame.isEnd) {
+            setMessage("王手！");
+          }
+          if (newGame.isEnd) {
+            const winner = newGame.outcome?.winner;
+            if (winner === playerColor) {
+              setMessage("あなたの勝ち！");
+            } else if (winner) {
+              setMessage("CPUの勝ち...");
+            } else {
+              setMessage("引き分け");
+            }
+          }
+        }
+      }
+      setAiThinking(false);
+    }, 500);
+
+    return () => {
+      if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    };
+  }, [game, isPlayerTurn, aiThinking, aiLevel, playerColor]);
 
   const handleReset = useCallback(() => {
-    setPosition(createInitialPosition());
-    setLastMove(undefined);
+    if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+    setGame(createGame());
+    setMessage(null);
+    setAiThinking(false);
   }, []);
+
+  const checkSquare =
+    game.isCheck ? findKingSquare(game, game.turn) : null;
 
   return (
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-8">
-      <h1 className="text-3xl font-bold mb-2">ebishogi</h1>
-      <p className="text-zinc-400 mb-8">AI-assisted shogi learning</p>
+      <h1 className="text-3xl font-bold mb-1">ebishogi</h1>
+      <p className="text-zinc-400 mb-6 text-sm">
+        AI-assisted shogi learning
+      </p>
 
       <ShogiBoard
-        position={position}
+        position={game.position}
+        orientation={playerColor}
+        arrows={arrows}
         onMove={handleMove}
-        lastMove={lastMove}
-        arrows={position.moveCount === 1 ? demoArrows : []}
+        lastMove={game.lastMove}
+        interactive={isPlayerTurn && !game.isEnd}
+        checkSquare={checkSquare ?? undefined}
       />
 
-      <div className="mt-6 flex gap-4">
-        <div className="text-sm text-zinc-400">
-          {position.turn === "sente" ? "先手" : "後手"}の番 | 手数: {position.moveCount}
+      <div className="mt-4 flex flex-col items-center gap-2">
+        {badMoveAlert && (
+          <div
+            className={`text-lg font-bold px-4 py-2 rounded-lg animate-bounce ${
+              badMoveAlert.severity === "blunder"
+                ? "bg-red-700/40 text-red-200"
+                : badMoveAlert.severity === "mistake"
+                  ? "bg-orange-600/40 text-orange-200"
+                  : "bg-yellow-600/30 text-yellow-200"
+            }`}
+          >
+            {badMoveAlert.message}
+          </div>
+        )}
+
+        {message && (
+          <div
+            className={`text-lg font-bold px-4 py-2 rounded-lg ${
+              message.includes("勝ち")
+                ? "bg-yellow-600/30 text-yellow-300"
+                : message.includes("王手")
+                  ? "bg-red-600/30 text-red-300"
+                  : "bg-gray-600/30 text-gray-300"
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 text-sm text-zinc-400">
+          <span>
+            {game.turn === "sente" ? "先手" : "後手"}の番
+          </span>
+          <span>手数: {game.moveCount}</span>
+          {aiThinking && (
+            <span className="text-sky-400 animate-pulse">
+              CPU思考中...
+            </span>
+          )}
         </div>
+
         <button
           onClick={handleReset}
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          className="mt-2 px-4 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
           type="button"
         >
-          リセット
+          新しい対局
         </button>
       </div>
     </div>
   );
+}
+
+function findKingSquare(
+  game: GameState,
+  color: Color,
+): number | null {
+  const kings = game.position.kingsOf(color);
+  for (const sq of kings) return sq;
+  return null;
 }

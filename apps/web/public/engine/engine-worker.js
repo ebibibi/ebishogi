@@ -1,4 +1,4 @@
-importScripts("yaneuraou.halfkp.js");
+importScripts("yaneuraou.k-p.js");
 
 var engine = null;
 var pending = [];
@@ -13,10 +13,11 @@ self.onmessage = function (e) {
   }
 };
 
-YaneuraOu_HalfKP({
+YaneuraOu_K_P({
   locateFile: function (file) {
     return "/engine/" + file;
   },
+  mainScriptUrlOrBlob: "/engine/yaneuraou.k-p.js",
 })
   .then(function (mod) {
     engine = mod;

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { MoveOrDrop, Color } from "shogiops/types";
 import { ShogiBoard } from "@/components/board";
+import { EvalBar } from "@/components/EvalBar";
 import { useAIAssist } from "@/hooks/useAIAssist";
 import {
   createGame,
@@ -22,7 +23,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const aiThinkingRef = useRef(false);
 
   const isPlayerTurn = game.turn === playerColor;
-  const { arrows, badMoveAlert, engineReady, evaluatePlayerMove } = useAIAssist(
+  const { arrows, badMoveAlert, engineReady, currentEval, evaluatePlayerMove } = useAIAssist(
     game,
     isPlayerTurn,
     true,
@@ -131,15 +132,18 @@ export function GameView({ onBack }: { onBack: () => void }) {
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-8">
       <h1 className="text-2xl font-bold mb-1">ebishogi</h1>
 
-      <ShogiBoard
-        position={game.position}
-        orientation={playerColor}
-        arrows={arrows}
-        onMove={handleMove}
-        lastMove={game.lastMove}
-        interactive={isPlayerTurn && !game.isEnd}
-        checkSquare={checkSquare ?? undefined}
-      />
+      <div className="flex items-center gap-2">
+        <EvalBar eval_cp={currentEval} />
+        <ShogiBoard
+          position={game.position}
+          orientation={playerColor}
+          arrows={arrows}
+          onMove={handleMove}
+          lastMove={game.lastMove}
+          interactive={isPlayerTurn && !game.isEnd}
+          checkSquare={checkSquare ?? undefined}
+        />
+      </div>
 
       <div className="mt-4 flex flex-col items-center gap-2">
         {badMoveAlert && (

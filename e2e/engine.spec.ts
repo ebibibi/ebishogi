@@ -65,6 +65,20 @@ test.describe("ebishogi", () => {
     await expect(page.getByText("先手の番")).toBeVisible();
   });
 
+  test("evaluation bar shows score after engine analysis", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "対局を始める" }).click();
+    await expect(page.getByText("先手の番")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("AIエンジン読込中...")).toBeHidden({
+      timeout: 30_000,
+    });
+
+    const evalValue = page.getByTestId("eval-value");
+    await expect(evalValue).not.toHaveText("—", { timeout: 10_000 });
+    const text = await evalValue.textContent();
+    expect(text).toMatch(/^[+\-#]?\d+$/);
+  });
+
   test("can return to landing page", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "対局を始める" }).click();

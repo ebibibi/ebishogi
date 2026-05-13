@@ -17,6 +17,7 @@ type AIAssistResult = {
   arrows: ArrowData[];
   badMoveAlert: BadMoveAlert | null;
   engineReady: boolean;
+  currentEval: number | null;
   evaluatePlayerMove: (cpuScore: number) => void;
 };
 
@@ -54,6 +55,7 @@ export function useAIAssist(
   const [arrows, setArrows] = useState<ArrowData[]>([]);
   const [badMoveAlert, setBadMoveAlert] = useState<BadMoveAlert | null>(null);
   const [engineReady, setEngineReady] = useState(false);
+  const [currentEval, setCurrentEval] = useState<number | null>(null);
   const prevEvalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -83,6 +85,9 @@ export function useAIAssist(
         timeMs: 3000,
         onInfo: (candidates) => {
           if (cancelled) return;
+          if (candidates.length > 0) {
+            setCurrentEval(candidates[0].score);
+          }
           const newArrows = candidates
             .map((c, i) => candidateToArrow(c, i))
             .filter((a): a is ArrowData => a !== null);
@@ -93,6 +98,7 @@ export function useAIAssist(
         if (cancelled) return;
         if (result.candidates.length > 0) {
           prevEvalRef.current = result.candidates[0].score;
+          setCurrentEval(result.candidates[0].score);
         }
         const finalArrows = result.candidates
           .map((c, i) => candidateToArrow(c, i))
@@ -113,14 +119,15 @@ export function useAIAssist(
 
   const evaluatePlayerMove = useCallback(
     (cpuScore: number) => {
+      const playerScoreAfter = -cpuScore;
+      setCurrentEval(playerScoreAfter);
+
       if (game.moveCount <= 1) {
         prevEvalRef.current = 0;
         return;
       }
       const prevEval = prevEvalRef.current;
       if (prevEval === null) return;
-
-      const playerScoreAfter = -cpuScore;
       const change = playerScoreAfter - prevEval;
 
       if (change < -500) {
@@ -136,5 +143,5 @@ export function useAIAssist(
     [game.moveCount],
   );
 
-  return { arrows, badMoveAlert, engineReady, evaluatePlayerMove };
+  return { arrows, badMoveAlert, engineReady, currentEval, evaluatePlayerMove };
 }

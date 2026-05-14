@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-noto-sans-jp);
+  --font-sans: "Noto Sans JP", sans-serif;
 }
 
 @keyframes piece-place {

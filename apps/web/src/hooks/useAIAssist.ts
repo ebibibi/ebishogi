@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { parseUsi } from "shogiops/util";
 import type { GameState } from "@/lib/shogi-game";
 import { squareToCoords } from "@/lib/shogi-game";
 import { getEngine } from "@/lib/engine";
 import type { CandidateMove } from "@/lib/engine";
 import type { ArrowData } from "@/components/board";
+import type { GameSettings } from "@/hooks/useSettings";
 
 export type BadMoveAlert = {
   message: string;
@@ -49,17 +50,17 @@ function candidateToArrow(
 
 export function useAIAssist(
   game: GameState,
-  isPlayerTurn: boolean,
-  enabled: boolean,
+  active: boolean,
+  settings: GameSettings,
 ): AIAssistResult {
-  const [arrows, setArrows] = useState<ArrowData[]>([]);
+  const [candidates, setCandidates] = useState<readonly CandidateMove[]>([]);
+  const [visibleRanks, setVisibleRanks] = useState<Set<number>>(new Set());
   const [badMoveAlert, setBadMoveAlert] = useState<BadMoveAlert | null>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [currentEval, setCurrentEval] = useState<number | null>(null);
   const prevEvalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
     let cancelled = false;
     getEngine()
       .init()
@@ -70,52 +71,80 @@ export function useAIAssist(
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, []);
 
   useEffect(() => {
-    setArrows([]);
-    if (!enabled || !engineReady || !isPlayerTurn || game.isEnd) return;
+    setCandidates([]);
+    setVisibleRanks(new Set());
+    if (!active || !engineReady || game.isEnd) return;
 
     let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     const engine = getEngine();
 
     engine
       .search(game.sfen, {
         multiPV: 3,
-        timeMs: 3000,
-        onInfo: (candidates) => {
+        timeMs: 5000,
+        onInfo: (infoCandidates) => {
           if (cancelled) return;
-          if (candidates.length > 0) {
-            setCurrentEval(candidates[0].score);
+          setCandidates(infoCandidates);
+          if (infoCandidates.length > 0) {
+            setCurrentEval(infoCandidates[0].score);
           }
-          const newArrows = candidates
-            .map((c, i) => candidateToArrow(c, i))
-            .filter((a): a is ArrowData => a !== null);
-          setArrows(newArrows);
         },
       })
       .then((result) => {
         if (cancelled) return;
+        setCandidates(result.candidates);
         if (result.candidates.length > 0) {
           prevEvalRef.current = result.candidates[0].score;
           setCurrentEval(result.candidates[0].score);
         }
-        const finalArrows = result.candidates
-          .map((c, i) => candidateToArrow(c, i))
-          .filter((a): a is ArrowData => a !== null);
-        setArrows(finalArrows);
       })
       .catch(() => {});
 
+    timers.push(
+      setTimeout(() => {
+        if (!cancelled) setVisibleRanks((prev) => new Set([...prev, 3]));
+      }, settings.arrowDelay3rd * 1000),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (!cancelled) setVisibleRanks((prev) => new Set([...prev, 2]));
+      }, settings.arrowDelay2nd * 1000),
+    );
+    timers.push(
+      setTimeout(() => {
+        if (!cancelled) setVisibleRanks((prev) => new Set([...prev, 1]));
+      }, settings.arrowDelay1st * 1000),
+    );
+
     return () => {
       cancelled = true;
+      timers.forEach(clearTimeout);
       engine.cancelSearch();
     };
-  }, [game, isPlayerTurn, enabled, engineReady]);
+  }, [
+    game,
+    active,
+    engineReady,
+    settings.arrowDelay3rd,
+    settings.arrowDelay2nd,
+    settings.arrowDelay1st,
+  ]);
+
+  const arrows = useMemo(() => {
+    if (visibleRanks.size === 0) return [];
+    return candidates
+      .filter((c) => visibleRanks.has(c.rank))
+      .map((c) => candidateToArrow(c, c.rank - 1))
+      .filter((a): a is ArrowData => a !== null);
+  }, [candidates, visibleRanks]);
 
   useEffect(() => {
-    if (isPlayerTurn) setBadMoveAlert(null);
-  }, [isPlayerTurn]);
+    if (active) setBadMoveAlert(null);
+  }, [active]);
 
   const evaluatePlayerMove = useCallback(
     (cpuScore: number) => {

@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-noto-sans-jp);
+  --font-sans: "Noto Sans JP", sans-serif;
+}
+
+@keyframes piece-place {
+  0% {
+    transform: scale(1.3);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-piece-place {
+  animation: piece-place 0.2s ease-out;
 }

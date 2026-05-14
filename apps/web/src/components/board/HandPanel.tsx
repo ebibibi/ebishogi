@@ -3,12 +3,23 @@
 import type { Color, Role } from "shogiops/types";
 
 const ROLE_KANJI: Record<string, string> = {
-  rook: "飛", bishop: "角", gold: "金", silver: "銀",
-  knight: "桂", lance: "香", pawn: "歩",
+  rook: "飛",
+  bishop: "角",
+  gold: "金",
+  silver: "銀",
+  knight: "桂",
+  lance: "香",
+  pawn: "歩",
 };
 
 const HAND_ORDER: Role[] = [
-  "rook", "bishop", "gold", "silver", "knight", "lance", "pawn",
+  "rook",
+  "bishop",
+  "gold",
+  "silver",
+  "knight",
+  "lance",
+  "pawn",
 ];
 
 type Props = {
@@ -32,11 +43,11 @@ export function HandPanel({
     <div
       className={`
         flex flex-col gap-1 p-2 rounded-lg min-w-16
-        ${isActive ? "bg-sky-50 ring-2 ring-sky-300" : "bg-gray-100"}
+        ${isActive ? "bg-zinc-700/80 ring-2 ring-amber-500/40" : "bg-zinc-800/60"}
       `}
     >
-      <div className="text-xs text-center text-gray-500 mb-1">
-        {color === "sente" ? "先手" : "後手"}
+      <div className="text-xs text-center text-zinc-400 mb-1">
+        {color === "sente" ? "☗先手" : "☖後手"}
       </div>
       {hasPieces ? (
         HAND_ORDER.map((role) => {
@@ -49,8 +60,8 @@ export function HandPanel({
               className={`
                 flex items-center gap-1 px-2 py-1 rounded text-sm
                 transition-colors duration-100
-                ${isSelected ? "bg-sky-300/60 ring-1 ring-sky-400" : "hover:bg-gray-200"}
-                ${isActive ? "cursor-pointer" : "cursor-default opacity-60"}
+                ${isSelected ? "bg-amber-600/40 ring-1 ring-amber-400" : "hover:bg-zinc-600/50"}
+                ${isActive ? "cursor-pointer text-zinc-200" : "cursor-default text-zinc-500"}
               `}
               onClick={() => isActive && onPieceClick(role)}
               type="button"
@@ -58,13 +69,13 @@ export function HandPanel({
             >
               <span className="font-bold">{ROLE_KANJI[role] ?? role}</span>
               {count > 1 && (
-                <span className="text-xs text-gray-500">{count}</span>
+                <span className="text-xs text-zinc-400">{count}</span>
               )}
             </button>
           );
         })
       ) : (
-        <div className="text-xs text-gray-400 text-center py-4">-</div>
+        <div className="text-xs text-zinc-500 text-center py-4">-</div>
       )}
     </div>
   );

@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import type { MoveOrDrop, Square, Color, Role, Piece } from "shogiops/types";
-import { squareFile, squareRank } from "shogiops/util";
 import type { Shogi } from "shogiops/variant/shogi";
 import {
   squareToCoords,
@@ -11,6 +10,7 @@ import {
   mustPromote,
   getHandPieces,
 } from "@/lib/shogi-game";
+import { PieceSVG } from "./PieceSVG";
 import { HandPanel } from "./HandPanel";
 import { Arrow } from "./Arrow";
 
@@ -24,14 +24,6 @@ export type ArrowData = {
   width: number;
 };
 
-const ROLE_KANJI: Record<string, string> = {
-  king: "玉", rook: "飛", bishop: "角", gold: "金",
-  silver: "銀", knight: "桂", lance: "香", pawn: "歩",
-  dragon: "龍", horse: "馬",
-  promotedsilver: "全", promotedknight: "圭",
-  promotedlance: "杏", tokin: "と",
-};
-
 type Props = {
   position: Shogi;
   orientation?: Color;
@@ -40,6 +32,7 @@ type Props = {
   onMove?: (move: MoveOrDrop) => void;
   interactive?: boolean;
   checkSquare?: Square | null;
+  moveCount?: number;
 };
 
 export function ShogiBoard({
@@ -50,6 +43,7 @@ export function ShogiBoard({
   onMove,
   interactive = true,
   checkSquare,
+  moveCount = 0,
 }: Props) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
@@ -109,7 +103,15 @@ export function ShogiBoard({
         setLegalDests(destSet);
       }
     },
-    [interactive, onMove, position, selected, selectedDrop, legalDests, showPromotion],
+    [
+      interactive,
+      onMove,
+      position,
+      selected,
+      selectedDrop,
+      legalDests,
+      showPromotion,
+    ],
   );
 
   const handlePromotion = useCallback(
@@ -149,11 +151,12 @@ export function ShogiBoard({
     : [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
   const lastMoveSquares = getLastMoveSquares(lastMove);
+  const lastMoveTo = lastMove ? lastMove.to : -1;
   const topColor = flipped ? "sente" : "gote";
   const bottomColor = flipped ? "gote" : "sente";
 
   return (
-    <div className="flex items-center gap-4 relative">
+    <div className="flex items-center gap-3 relative">
       <HandPanel
         pieces={getHandPieces(position, topColor)}
         color={topColor}
@@ -168,7 +171,7 @@ export function ShogiBoard({
           {files.map((f) => (
             <div
               key={f}
-              className="w-12 text-center text-sm text-gray-400"
+              className="w-12 text-center text-xs text-zinc-500 font-mono"
             >
               {f}
             </div>
@@ -180,14 +183,22 @@ export function ShogiBoard({
             {ranks.map((r) => (
               <div
                 key={r}
-                className="w-6 h-12 flex items-center justify-center text-sm text-gray-400"
+                className="w-6 h-12 flex items-center justify-center text-xs text-zinc-500"
               >
                 {rankKanji(r)}
               </div>
             ))}
           </div>
 
-          <div className="relative border-2 border-amber-900 bg-amber-200 shadow-lg">
+          <div
+            className="relative shadow-xl rounded-sm"
+            style={{
+              border: "2px solid #8B6914",
+              backgroundColor: "#D4A050",
+              backgroundImage:
+                "repeating-linear-gradient(90deg, transparent, rgba(139,115,85,0.07) 1px, transparent 2px, transparent 13px)",
+            }}
+          >
             <div className="grid grid-cols-9">
               {ranks.map((rank) =>
                 files.map((file) => {
@@ -196,30 +207,41 @@ export function ShogiBoard({
                   const isSelected = selected === sq;
                   const isLegalDest = legalDests.has(sq);
                   const isLastMove = lastMoveSquares.has(sq);
+                  const isLastMovedTo = sq === lastMoveTo;
                   const isCheckSq = checkSquare === sq;
 
                   return (
                     <button
                       key={`${file}-${rank}`}
                       className={`
-                        w-12 h-12 border border-amber-700/20 flex items-center justify-center
+                        w-12 h-12 border border-amber-800/25 flex items-center justify-center
                         relative transition-all duration-100
-                        ${isSelected ? "bg-sky-300/50 ring-2 ring-sky-400" : ""}
-                        ${isLastMove && !isSelected ? "bg-amber-400/40" : ""}
-                        ${isCheckSq ? "bg-red-400/50 ring-2 ring-red-500" : ""}
-                        ${interactive ? "cursor-pointer hover:bg-sky-100/30" : ""}
+                        ${isSelected ? "bg-sky-400/25 ring-2 ring-sky-400/60 z-10" : ""}
+                        ${isLastMove && !isSelected ? "bg-amber-500/20" : ""}
+                        ${isCheckSq ? "bg-red-500/30 ring-2 ring-red-500/60 z-10" : ""}
+                        ${interactive ? "cursor-pointer hover:bg-white/10" : ""}
                       `}
                       onClick={() => handleSquareClick(file, rank)}
                       type="button"
                     >
                       {isLegalDest && !piece && (
-                        <div className="absolute w-3 h-3 bg-sky-500/40 rounded-full" />
+                        <div className="absolute w-3.5 h-3.5 bg-sky-500/35 rounded-full" />
                       )}
                       {isLegalDest && piece && (
-                        <div className="absolute inset-0 ring-2 ring-sky-500/50 ring-inset rounded-sm" />
+                        <div className="absolute inset-0.5 ring-2 ring-sky-500/50 ring-inset rounded-sm" />
                       )}
                       {piece && (
-                        <PieceDisplay piece={piece} flipped={flipped} />
+                        <PieceSVG
+                          key={
+                            isLastMovedTo
+                              ? `m${moveCount}`
+                              : `s${file}-${rank}`
+                          }
+                          piece={piece}
+                          flipped={flipped}
+                          isSelected={isSelected}
+                          animate={isLastMovedTo}
+                        />
                       )}
                     </button>
                   );
@@ -270,9 +292,9 @@ export function ShogiBoard({
 
       {showPromotion && (
         <div className="absolute inset-0 flex items-center justify-center z-50">
-          <div className="bg-gray-900/80 absolute inset-0" />
-          <div className="relative bg-white rounded-xl shadow-2xl p-6 flex flex-col gap-4">
-            <p className="text-gray-800 font-bold text-center">成りますか？</p>
+          <div className="bg-black/70 absolute inset-0" />
+          <div className="relative bg-zinc-800 rounded-xl shadow-2xl p-6 flex flex-col gap-4 border border-zinc-700">
+            <p className="text-zinc-200 font-bold text-center">成りますか？</p>
             <div className="flex gap-4">
               <button
                 onClick={() => handlePromotion(true)}
@@ -283,7 +305,7 @@ export function ShogiBoard({
               </button>
               <button
                 onClick={() => handlePromotion(false)}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg font-bold text-lg hover:bg-gray-700 transition-colors"
+                className="px-6 py-3 bg-zinc-600 text-white rounded-lg font-bold text-lg hover:bg-zinc-500 transition-colors"
                 type="button"
               >
                 不成
@@ -293,31 +315,6 @@ export function ShogiBoard({
         </div>
       )}
     </div>
-  );
-}
-
-function PieceDisplay({ piece, flipped }: { piece: Piece; flipped: boolean }) {
-  const isGote = piece.color === "gote";
-  const rotate = flipped ? !isGote : isGote;
-  const isPromoted = [
-    "dragon",
-    "horse",
-    "tokin",
-    "promotedsilver",
-    "promotedknight",
-    "promotedlance",
-  ].includes(piece.role);
-
-  return (
-    <span
-      className={`
-        text-lg font-bold select-none leading-none
-        ${rotate ? "rotate-180" : ""}
-        ${isPromoted ? "text-red-700" : "text-gray-900"}
-      `}
-    >
-      {ROLE_KANJI[piece.role] ?? piece.role}
-    </span>
   );
 }
 

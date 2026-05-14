@@ -35,7 +35,7 @@ test.describe("ebishogi", () => {
     expect(criticalErrors).toEqual([]);
   });
 
-  test("board is rendered with pieces", async ({ page }) => {
+  test("board is rendered with pieces and controls", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "対局を始める" }).click();
 
@@ -46,6 +46,12 @@ test.describe("ebishogi", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "トップへ" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "設定" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "待った" }),
     ).toBeVisible();
   });
 
@@ -61,7 +67,7 @@ test.describe("ebishogi", () => {
     await squares.nth(56).click();
     await squares.nth(47).click();
 
-    await expect(page.getByText(/手数: [3-9]/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/手数: [3-9]/)).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("先手の番")).toBeVisible();
   });
 
@@ -77,6 +83,19 @@ test.describe("ebishogi", () => {
     await expect(evalValue).not.toHaveText("—", { timeout: 10_000 });
     const text = await evalValue.textContent();
     expect(text).toMatch(/^[+\-#]?\d+$/);
+  });
+
+  test("settings panel opens and closes", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "対局を始める" }).click();
+    await expect(page.getByText("先手の番")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("button", { name: "設定" }).click();
+    await expect(page.getByText("候補手の表示タイミング")).toBeVisible();
+    await expect(page.getByText("効果音")).toBeVisible();
+
+    await page.getByRole("button", { name: "閉じる" }).click();
+    await expect(page.getByText("候補手の表示タイミング")).toBeHidden();
   });
 
   test("can return to landing page", async ({ page }) => {

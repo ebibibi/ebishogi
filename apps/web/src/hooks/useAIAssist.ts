@@ -20,6 +20,7 @@ type AIAssistResult = {
   engineReady: boolean;
   currentEval: number | null;
   evaluatePlayerMove: (cpuScore: number) => void;
+  thinkingElapsed: number;
 };
 
 const ARROW_STYLES = [
@@ -58,7 +59,9 @@ export function useAIAssist(
   const [badMoveAlert, setBadMoveAlert] = useState<BadMoveAlert | null>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [currentEval, setCurrentEval] = useState<number | null>(null);
+  const [thinkingElapsed, setThinkingElapsed] = useState(0);
   const prevEvalRef = useRef<number | null>(null);
+  const thinkingStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +137,26 @@ export function useAIAssist(
     settings.arrowDelay1st,
   ]);
 
+  useEffect(() => {
+    if (!active || !engineReady || game.isEnd) {
+      thinkingStartRef.current = null;
+      setThinkingElapsed(0);
+      return;
+    }
+    thinkingStartRef.current = performance.now();
+    let raf: number;
+    const tick = () => {
+      if (thinkingStartRef.current !== null) {
+        setThinkingElapsed(
+          (performance.now() - thinkingStartRef.current) / 1000,
+        );
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, engineReady, game.isEnd]);
+
   const arrows = useMemo(() => {
     if (visibleRanks.size === 0) return [];
     return candidates
@@ -172,5 +195,12 @@ export function useAIAssist(
     [game.moveCount],
   );
 
-  return { arrows, badMoveAlert, engineReady, currentEval, evaluatePlayerMove };
+  return {
+    arrows,
+    badMoveAlert,
+    engineReady,
+    currentEval,
+    evaluatePlayerMove,
+    thinkingElapsed,
+  };
 }

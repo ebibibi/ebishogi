@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { MoveOrDrop, Color } from "shogiops/types";
 import { ShogiBoard } from "@/components/board";
 import { EvalBar } from "@/components/EvalBar";
+import { ArrowTimerMeter } from "@/components/ArrowTimerMeter";
 import { EvalGraph } from "@/components/EvalGraph";
 import { GameControls } from "@/components/GameControls";
 import { SettingsPanel } from "@/components/SettingsPanel";
@@ -50,6 +51,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     engineReady,
     currentEval,
     evaluatePlayerMove,
+    thinkingElapsed,
   } = useAIAssist(game, isPlayerTurn && isLive, settings);
 
   const { playMove, playCapture, playCheck } = useSound(
@@ -237,6 +239,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
         evalHistory={evalHistory}
         currentIndex={viewIndex}
         onClickMove={goTo}
+      />
+
+      <ArrowTimerMeter
+        elapsed={thinkingElapsed}
+        settings={settings}
+        active={isPlayerTurn && isLive && engineReady && !game.isEnd}
       />
 
       <div className="mt-3 flex flex-col items-center gap-2">

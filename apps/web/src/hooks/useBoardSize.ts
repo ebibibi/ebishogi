@@ -2,22 +2,35 @@
 
 import { useState, useEffect } from "react";
 
-export function useBoardSize(): number {
-  const [cellSize, setCellSize] = useState(64);
+export type BoardLayout = {
+  cellSize: number;
+  compact: boolean;
+};
+
+export function useBoardSize(): BoardLayout {
+  const [layout, setLayout] = useState<BoardLayout>({ cellSize: 48, compact: false });
 
   useEffect(() => {
-    function calc() {
+    function calc(): BoardLayout {
       const vh = window.innerHeight;
       const vw = window.innerWidth;
+      const compact = vw < 640;
+
+      if (compact) {
+        const fromW = Math.floor((vw - 24) / 9);
+        const fromH = Math.floor((vh - 280) / 9);
+        return { cellSize: Math.max(32, Math.min(fromW, fromH)), compact: true };
+      }
+
       const fromH = Math.floor((vh - 260) / 9);
       const fromW = Math.floor((vw - 260) / 9);
-      return Math.max(48, Math.min(fromH, fromW));
+      return { cellSize: Math.max(48, Math.min(fromH, fromW)), compact: false };
     }
-    setCellSize(calc());
-    const handler = () => setCellSize(calc());
+    setLayout(calc());
+    const handler = () => setLayout(calc());
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  return cellSize;
+  return layout;
 }

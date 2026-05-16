@@ -40,7 +40,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
   } = useGameHistory();
 
   const { settings, updateSettings, resetSettings } = useSettings();
-  const cellSize = useBoardSize();
+  const { cellSize, compact } = useBoardSize();
   const boardPx = cellSize * 9;
   const [playerColor] = useState<Color>("sente");
   const [aiThinking, setAiThinking] = useState(false);
@@ -239,11 +239,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
     : null;
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-2 select-none">
-      <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>
+    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-1 select-none">
+      {!compact && <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>}
 
       <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>
-        <EvalBar eval_cp={currentEval} height={boardPx} />
+        {!compact && <EvalBar eval_cp={currentEval} height={boardPx} />}
         <div className="flex flex-col items-center">
           <ShogiBoard
             position={game.position}
@@ -257,6 +257,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
             captureSquare={captureInfo}
             captureTrigger={captureTrigger}
             cellSize={cellSize}
+            compact={compact}
           />
           <GameControls
             canTakeBack={canTakeBack && isLive}

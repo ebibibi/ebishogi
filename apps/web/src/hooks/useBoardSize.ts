@@ -17,8 +17,8 @@ export function useBoardSize(): BoardLayout {
       const compact = vw < 640;
 
       if (compact) {
-        const fromW = Math.floor((vw - 24) / 9);
-        const fromH = Math.floor((vh - 280) / 9);
+        const fromW = Math.floor((vw - 16) / 9);
+        const fromH = Math.floor((vh - 200) / 9);
         return { cellSize: Math.max(32, Math.min(fromW, fromH)), compact: true };
       }
 

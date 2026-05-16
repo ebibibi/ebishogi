@@ -239,7 +239,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     : null;
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-1 select-none">
+    <div className={`min-h-screen bg-zinc-900 text-white flex flex-col items-center select-none ${compact ? "justify-start pt-2" : "justify-center p-1"}`}>
       {!compact && <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>}
 
       <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>
@@ -273,24 +273,28 @@ export function GameView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <EvalGraph
-        evalHistory={evalHistory}
-        currentIndex={viewIndex}
-        onClickMove={goTo}
-        width={boardPx}
-      />
+      {!compact && (
+        <EvalGraph
+          evalHistory={evalHistory}
+          currentIndex={viewIndex}
+          onClickMove={goTo}
+          width={boardPx}
+        />
+      )}
 
-      <ArrowTimerMeter
-        elapsed={thinkingElapsed}
-        settings={settings}
-        active={isPlayerTurn && isLive && engineReady && !game.isEnd}
-      />
+      {!compact && (
+        <ArrowTimerMeter
+          elapsed={thinkingElapsed}
+          settings={settings}
+          active={isPlayerTurn && isLive && engineReady && !game.isEnd}
+        />
+      )}
 
-      <div className="mt-2 flex flex-col items-center gap-1.5 min-h-[80px]">
-        <div className="h-10 flex items-center justify-center">
+      <div className={`flex flex-col items-center gap-1 ${compact ? "mt-1" : "mt-2 gap-1.5 min-h-[80px]"}`}>
+        <div className={`${compact ? "h-7" : "h-10"} flex items-center justify-center`}>
           {badMoveAlert && isLive ? (
             <div
-              className={`text-lg font-bold px-4 py-2 rounded-lg animate-bounce ${
+              className={`${compact ? "text-sm" : "text-lg"} font-bold px-3 py-1 rounded-lg animate-bounce ${
                 badMoveAlert.severity === "blunder"
                   ? "bg-red-700/40 text-red-200"
                   : badMoveAlert.severity === "mistake"
@@ -302,7 +306,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
             </div>
           ) : message ? (
             <div
-              className={`text-lg font-bold px-4 py-2 rounded-lg ${
+              className={`${compact ? "text-sm" : "text-lg"} font-bold px-3 py-1 rounded-lg ${
                 message.includes("勝ち")
                   ? "bg-yellow-600/30 text-yellow-300"
                   : message.includes("王手")
@@ -313,18 +317,18 @@ export function GameView({ onBack }: { onBack: () => void }) {
               {message}
             </div>
           ) : !isLive ? (
-            <div className="text-amber-400/80 text-sm">
+            <div className="text-amber-400/80 text-xs">
               棋譜閲覧中（{viewIndex}手目）
             </div>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-4 text-sm text-zinc-400 h-5">
+        <div className={`flex items-center gap-3 ${compact ? "text-xs" : "text-sm"} text-zinc-400 h-4`}>
           <span>{game.turn === "sente" ? "先手" : "後手"}の番</span>
-          <span>手数: {game.moveCount}</span>
+          <span>{game.moveCount}手目</span>
           {!engineReady && (
             <span className="text-amber-400 animate-pulse">
-              AIエンジン読込中...
+              AI読込中...
             </span>
           )}
           {aiThinking && engineReady && (
@@ -335,21 +339,21 @@ export function GameView({ onBack }: { onBack: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={handleReset}
-            className="px-4 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+            className={`${compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm"} bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors`}
             type="button"
           >
             新しい対局
           </button>
           <button
             onClick={() => setShowSettings(true)}
-            className="px-4 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+            className={`${compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm"} bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors`}
             type="button"
           >
             設定
           </button>
           <button
             onClick={onBack}
-            className="px-4 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400"
+            className={`${compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm"} bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400`}
             type="button"
           >
             トップへ

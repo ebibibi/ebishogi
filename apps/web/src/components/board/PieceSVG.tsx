@@ -29,7 +29,7 @@ type Props = {
 
 export function PieceSVG({ piece, flipped, isSelected, animate, size = 44 }: Props) {
   const isGote = piece.color === "gote";
-  const rotate = flipped ? !isGote : isGote;
+  const shouldRotate = flipped ? !isGote : isGote;
   const src = PIECE_IMAGE[piece.role] ?? PIECE_IMAGE.pawn;
 
   return (
@@ -37,15 +37,17 @@ export function PieceSVG({ piece, flipped, isSelected, animate, size = 44 }: Pro
       src={src}
       alt={piece.role}
       draggable={false}
-      className={`object-contain pointer-events-none transition-transform duration-150 ${
-        isSelected ? "scale-110 brightness-110" : ""
-      } ${animate ? "animate-piece-place" : ""}`}
+      className={`object-contain pointer-events-none ${
+        animate ? "animate-piece-place" : ""
+      }`}
       style={{
         width: size,
         height: size,
-        transform: rotate ? "rotate(180deg)" : undefined,
+        rotate: shouldRotate ? "180deg" : undefined,
+        scale: isSelected ? "1.1" : undefined,
+        transition: "scale 0.15s, filter 0.15s",
         filter: isSelected
-          ? "drop-shadow(0 2px 6px rgba(212,175,55,0.6))"
+          ? "drop-shadow(0 2px 6px rgba(212,175,55,0.6)) brightness(1.1)"
           : "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
       }}
     />

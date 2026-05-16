@@ -9,6 +9,7 @@ import { EvalGraph } from "@/components/EvalGraph";
 import { GameControls } from "@/components/GameControls";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useAIAssist } from "@/hooks/useAIAssist";
+import { useBoardSize } from "@/hooks/useBoardSize";
 import { useGameHistory } from "@/hooks/useGameHistory";
 import { useSettings } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
@@ -39,6 +40,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
   } = useGameHistory();
 
   const { settings, updateSettings, resetSettings } = useSettings();
+  const cellSize = useBoardSize();
+  const boardPx = cellSize * 9;
   const [playerColor] = useState<Color>("sente");
   const [aiThinking, setAiThinking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -236,11 +239,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
     : null;
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-4 select-none">
-      <h1 className="text-2xl font-bold mb-2 tracking-tight">ebishogi</h1>
+    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-2 select-none">
+      <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>
 
       <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>
-        <EvalBar eval_cp={currentEval} />
+        <EvalBar eval_cp={currentEval} height={boardPx} />
         <div className="flex flex-col items-center">
           <ShogiBoard
             position={game.position}
@@ -253,6 +256,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
             moveCount={game.moveCount}
             captureSquare={captureInfo}
             captureTrigger={captureTrigger}
+            cellSize={cellSize}
           />
           <GameControls
             canTakeBack={canTakeBack && isLive}
@@ -272,6 +276,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
         evalHistory={evalHistory}
         currentIndex={viewIndex}
         onClickMove={goTo}
+        width={boardPx}
       />
 
       <ArrowTimerMeter
@@ -280,7 +285,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
         active={isPlayerTurn && isLive && engineReady && !game.isEnd}
       />
 
-      <div className="mt-3 flex flex-col items-center gap-2 min-h-[100px]">
+      <div className="mt-2 flex flex-col items-center gap-1.5 min-h-[80px]">
         <div className="h-10 flex items-center justify-center">
           {badMoveAlert && isLive ? (
             <div
@@ -326,24 +331,24 @@ export function GameView({ onBack }: { onBack: () => void }) {
           )}
         </div>
 
-        <div className="flex gap-2 mt-1">
+        <div className="flex gap-2">
           <button
             onClick={handleReset}
-            className="px-4 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+            className="px-4 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
             type="button"
           >
             新しい対局
           </button>
           <button
             onClick={() => setShowSettings(true)}
-            className="px-4 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+            className="px-4 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
             type="button"
           >
             設定
           </button>
           <button
             onClick={onBack}
-            className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400"
+            className="px-4 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400"
             type="button"
           >
             トップへ

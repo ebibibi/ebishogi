@@ -13,6 +13,7 @@ import {
 import { PieceSVG } from "./PieceSVG";
 import { HandPanel } from "./HandPanel";
 import { Arrow } from "./Arrow";
+import { CaptureEffect } from "./CaptureEffect";
 
 export type ArrowData = {
   fromFile: number;
@@ -33,6 +34,8 @@ type Props = {
   interactive?: boolean;
   checkSquare?: Square | null;
   moveCount?: number;
+  captureSquare?: { file: number; rank: number } | null;
+  captureTrigger?: number;
 };
 
 export function ShogiBoard({
@@ -44,6 +47,8 @@ export function ShogiBoard({
   interactive = true,
   checkSquare,
   moveCount = 0,
+  captureSquare,
+  captureTrigger = 0,
 }: Props) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
@@ -278,6 +283,15 @@ export function ShogiBoard({
                 );
               })}
             </svg>
+
+            {captureSquare && captureTrigger > 0 && (
+              <CaptureEffect
+                file={captureSquare.file}
+                rank={captureSquare.rank}
+                flipped={flipped}
+                trigger={captureTrigger}
+              />
+            )}
           </div>
         </div>
       </div>

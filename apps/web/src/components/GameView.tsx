@@ -280,42 +280,40 @@ export function GameView({ onBack }: { onBack: () => void }) {
         active={isPlayerTurn && isLive && engineReady && !game.isEnd}
       />
 
-      <div className="mt-3 flex flex-col items-center gap-2">
-        {badMoveAlert && isLive && (
-          <div
-            className={`text-lg font-bold px-4 py-2 rounded-lg animate-bounce ${
-              badMoveAlert.severity === "blunder"
-                ? "bg-red-700/40 text-red-200"
-                : badMoveAlert.severity === "mistake"
-                  ? "bg-orange-600/40 text-orange-200"
-                  : "bg-yellow-600/30 text-yellow-200"
-            }`}
-          >
-            {badMoveAlert.message}
-          </div>
-        )}
+      <div className="mt-3 flex flex-col items-center gap-2 min-h-[100px]">
+        <div className="h-10 flex items-center justify-center">
+          {badMoveAlert && isLive ? (
+            <div
+              className={`text-lg font-bold px-4 py-2 rounded-lg animate-bounce ${
+                badMoveAlert.severity === "blunder"
+                  ? "bg-red-700/40 text-red-200"
+                  : badMoveAlert.severity === "mistake"
+                    ? "bg-orange-600/40 text-orange-200"
+                    : "bg-yellow-600/30 text-yellow-200"
+              }`}
+            >
+              {badMoveAlert.message}
+            </div>
+          ) : message ? (
+            <div
+              className={`text-lg font-bold px-4 py-2 rounded-lg ${
+                message.includes("勝ち")
+                  ? "bg-yellow-600/30 text-yellow-300"
+                  : message.includes("王手")
+                    ? "bg-red-600/30 text-red-300"
+                    : "bg-gray-600/30 text-gray-300"
+              }`}
+            >
+              {message}
+            </div>
+          ) : !isLive ? (
+            <div className="text-amber-400/80 text-sm">
+              棋譜閲覧中（{viewIndex}手目）
+            </div>
+          ) : null}
+        </div>
 
-        {message && (
-          <div
-            className={`text-lg font-bold px-4 py-2 rounded-lg ${
-              message.includes("勝ち")
-                ? "bg-yellow-600/30 text-yellow-300"
-                : message.includes("王手")
-                  ? "bg-red-600/30 text-red-300"
-                  : "bg-gray-600/30 text-gray-300"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-
-        {!isLive && (
-          <div className="text-amber-400/80 text-sm">
-            棋譜閲覧中（{viewIndex}手目）
-          </div>
-        )}
-
-        <div className="flex items-center gap-4 text-sm text-zinc-400">
+        <div className="flex items-center gap-4 text-sm text-zinc-400 h-5">
           <span>{game.turn === "sente" ? "先手" : "後手"}の番</span>
           <span>手数: {game.moveCount}</span>
           {!engineReady && (

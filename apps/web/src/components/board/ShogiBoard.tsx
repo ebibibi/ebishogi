@@ -37,6 +37,7 @@ type Props = {
   captureSquare?: { file: number; rank: number } | null;
   captureTrigger?: number;
   cellSize?: number;
+  compact?: boolean;
 };
 
 export function ShogiBoard({
@@ -51,6 +52,7 @@ export function ShogiBoard({
   captureSquare,
   captureTrigger = 0,
   cellSize = 48,
+  compact = false,
 }: Props) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
@@ -167,43 +169,38 @@ export function ShogiBoard({
   const topColor = flipped ? "sente" : "gote";
   const bottomColor = flipped ? "gote" : "sente";
 
-  return (
-    <div className="flex items-center gap-3 relative">
-      <HandPanel
-        pieces={getHandPieces(position, topColor)}
-        color={topColor}
-        isActive={position.turn === topColor}
-        selectedDrop={position.turn === topColor ? selectedDrop : null}
-        onPieceClick={handleHandClick}
-        cellSize={cellSize}
-      />
-
+  const boardSection = (
+    <>
       <div className="relative">
-        <div className="flex mb-1">
-          <div style={{ width: labelW }} />
-          {files.map((f) => (
-            <div
-              key={f}
-              style={{ width: cellSize }}
-              className="text-center text-xs text-zinc-500 font-mono"
-            >
-              {f}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex">
-          <div className="flex flex-col">
-            {ranks.map((r) => (
+        {!compact && (
+          <div className="flex mb-1">
+            <div style={{ width: labelW }} />
+            {files.map((f) => (
               <div
-                key={r}
-                style={{ width: labelW, height: cellSize }}
-                className="flex items-center justify-center text-xs text-zinc-500"
+                key={f}
+                style={{ width: cellSize }}
+                className="text-center text-xs text-zinc-500 font-mono"
               >
-                {rankKanji(r)}
+                {f}
               </div>
             ))}
           </div>
+        )}
+
+        <div className="flex">
+          {!compact && (
+            <div className="flex flex-col">
+              {ranks.map((r) => (
+                <div
+                  key={r}
+                  style={{ width: labelW, height: cellSize }}
+                  className="flex items-center justify-center text-xs text-zinc-500"
+                >
+                  {rankKanji(r)}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div
             className="relative shadow-xl rounded-sm"
@@ -322,15 +319,48 @@ export function ShogiBoard({
           </div>
         </div>
       </div>
+    </>
+  );
 
-      <HandPanel
-        pieces={getHandPieces(position, bottomColor)}
-        color={bottomColor}
-        isActive={position.turn === bottomColor}
-        selectedDrop={position.turn === bottomColor ? selectedDrop : null}
-        onPieceClick={handleHandClick}
-        cellSize={cellSize}
-      />
+  const handTop = (
+    <HandPanel
+      pieces={getHandPieces(position, topColor)}
+      color={topColor}
+      isActive={position.turn === topColor}
+      selectedDrop={position.turn === topColor ? selectedDrop : null}
+      onPieceClick={handleHandClick}
+      cellSize={cellSize}
+      horizontal={compact}
+    />
+  );
+
+  const handBottom = (
+    <HandPanel
+      pieces={getHandPieces(position, bottomColor)}
+      color={bottomColor}
+      isActive={position.turn === bottomColor}
+      selectedDrop={position.turn === bottomColor ? selectedDrop : null}
+      onPieceClick={handleHandClick}
+      cellSize={cellSize}
+      horizontal={compact}
+    />
+  );
+
+  return (
+    <div className="relative">
+      {compact ? (
+        <div className="flex flex-col items-center gap-1">
+          {handTop}
+          {boardSection}
+          {handBottom}
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          {handTop}
+          {boardSection}
+          {handBottom}
+        </div>
+      )}
 
       {showPromotion && (
         <div className="absolute inset-0 flex items-center justify-center z-50">

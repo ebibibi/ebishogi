@@ -210,8 +210,14 @@ export function ShogiBoard({
             style={{
               border: "2px solid #8B6914",
               backgroundColor: "#D4A050",
-              backgroundImage:
-                "repeating-linear-gradient(90deg, transparent, rgba(139,115,85,0.07) 1px, transparent 2px, transparent 13px)",
+              backgroundImage: [
+                "repeating-linear-gradient(90deg, transparent, rgba(139,115,85,0.08) 1px, transparent 2px, transparent 11px)",
+                "repeating-linear-gradient(88deg, transparent, rgba(130,100,50,0.05) 0.5px, transparent 1.5px, transparent 23px)",
+                "repeating-linear-gradient(92deg, transparent 0px, rgba(160,120,60,0.04) 0.5px, transparent 1px, transparent 37px)",
+                "repeating-linear-gradient(0deg, transparent, rgba(140,110,60,0.025) 0.5px, transparent 1px, transparent 48px)",
+                "linear-gradient(176deg, rgba(255,220,140,0.10) 0%, transparent 25%, rgba(120,85,30,0.06) 55%, transparent 85%)",
+                "radial-gradient(ellipse at 45% 40%, rgba(255,210,120,0.07) 0%, transparent 60%)",
+              ].join(","),
             }}
           >
             <div

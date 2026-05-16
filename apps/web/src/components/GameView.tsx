@@ -12,7 +12,11 @@ import { useAIAssist } from "@/hooks/useAIAssist";
 import { useGameHistory } from "@/hooks/useGameHistory";
 import { useSettings } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
-import { applyMoveToGame, usiToMove } from "@/lib/shogi-game";
+import {
+  applyMoveToGame,
+  usiToMove,
+  squareToCoords,
+} from "@/lib/shogi-game";
 import { getEngine } from "@/lib/engine";
 
 export function GameView({ onBack }: { onBack: () => void }) {
@@ -41,6 +45,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef(false);
   const aiThinkingRef = useRef(false);
+  const [captureInfo, setCaptureInfo] = useState<{
+    file: number;
+    rank: number;
+  } | null>(null);
+  const [captureTrigger, setCaptureTrigger] = useState(0);
+  const [shaking, setShaking] = useState(false);
 
   const isPlayerTurn = game.turn === playerColor;
   const isInteractive = isLive && isPlayerTurn && !game.isEnd;
@@ -58,6 +68,17 @@ export function GameView({ onBack }: { onBack: () => void }) {
     settings.soundEnabled,
   );
 
+  const triggerCapture = useCallback(
+    (sq: number) => {
+      const coords = squareToCoords(sq);
+      setCaptureInfo({ file: coords.file, rank: coords.rank });
+      setCaptureTrigger((n) => n + 1);
+      setShaking(true);
+      setTimeout(() => setShaking(false), 200);
+    },
+    [],
+  );
+
   const handleMove = useCallback(
     (move: MoveOrDrop) => {
       if (!isInteractive) return;
@@ -66,8 +87,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
 
       const isCapt =
         "from" in move && game.position.board.get(move.to) !== undefined;
-      if (isCapt) playCapture();
-      else playMove();
+      if (isCapt) {
+        playCapture();
+        triggerCapture(move.to);
+      } else {
+        playMove();
+      }
 
       pushMove(newGame, currentEval);
       setMessage(null);
@@ -92,6 +117,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
       playMove,
       playCapture,
       playCheck,
+      triggerCapture,
     ],
   );
 
@@ -139,8 +165,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
 
         const isCapt =
           "from" in move && game.position.board.get(move.to) !== undefined;
-        if (isCapt) playCapture();
-        else playMove();
+        if (isCapt) {
+          playCapture();
+          triggerCapture(move.to);
+        } else {
+          playMove();
+        }
 
         const cpuScore = result.candidates[0]?.score;
         pushMove(newGame, cpuScore !== undefined ? -cpuScore : null);
@@ -180,6 +210,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     playMove,
     playCapture,
     playCheck,
+    triggerCapture,
   ]);
 
   const handleReset = useCallback(() => {
@@ -208,7 +239,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-4 select-none">
       <h1 className="text-2xl font-bold mb-2 tracking-tight">ebishogi</h1>
 
-      <div className="flex items-start gap-2">
+      <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>
         <EvalBar eval_cp={currentEval} />
         <div className="flex flex-col items-center">
           <ShogiBoard
@@ -220,6 +251,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
             interactive={isInteractive}
             checkSquare={checkSquare ?? undefined}
             moveCount={game.moveCount}
+            captureSquare={captureInfo}
+            captureTrigger={captureTrigger}
           />
           <GameControls
             canTakeBack={canTakeBack && isLive}

@@ -23,9 +23,10 @@ function evalToPercent(cp: number): number {
 
 type Props = {
   eval_cp: number | null;
+  height?: number;
 };
 
-export function EvalBar({ eval_cp }: Props) {
+export function EvalBar({ eval_cp, height = 432 }: Props) {
   const sentePercent = eval_cp !== null ? evalToPercent(eval_cp) : 50;
   const displayValue = eval_cp !== null ? formatEval(eval_cp) : "—";
   const isSenteAdvantage = (eval_cp ?? 0) >= 0;
@@ -33,7 +34,7 @@ export function EvalBar({ eval_cp }: Props) {
   return (
     <div className="flex flex-col items-center gap-1 select-none" data-testid="eval-bar">
       <span className="text-xs text-zinc-500">☖後手</span>
-      <div className="relative w-7 rounded-sm overflow-hidden" style={{ height: 432 }}>
+      <div className="relative w-7 rounded-sm overflow-hidden" style={{ height }}>
         <div className="absolute inset-0 bg-zinc-200" />
         <div
           className="absolute top-0 left-0 right-0 bg-zinc-700 transition-all duration-500 ease-out"

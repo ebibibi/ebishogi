@@ -36,6 +36,7 @@ type Props = {
   moveCount?: number;
   captureSquare?: { file: number; rank: number } | null;
   captureTrigger?: number;
+  cellSize?: number;
 };
 
 export function ShogiBoard({
@@ -49,6 +50,7 @@ export function ShogiBoard({
   moveCount = 0,
   captureSquare,
   captureTrigger = 0,
+  cellSize = 48,
 }: Props) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
@@ -58,6 +60,11 @@ export function ShogiBoard({
     to: Square;
   } | null>(null);
   const flipped = orientation === "gote";
+
+  const boardPx = cellSize * 9;
+  const labelW = Math.max(20, Math.floor(cellSize * 0.45));
+  const pieceSize = Math.floor(cellSize * 0.92);
+  const dotSize = Math.max(10, Math.floor(cellSize * 0.3));
 
   const handleSquareClick = useCallback(
     (file: number, rank: number) => {
@@ -168,15 +175,17 @@ export function ShogiBoard({
         isActive={position.turn === topColor}
         selectedDrop={position.turn === topColor ? selectedDrop : null}
         onPieceClick={handleHandClick}
+        cellSize={cellSize}
       />
 
       <div className="relative">
         <div className="flex mb-1">
-          <div className="w-6" />
+          <div style={{ width: labelW }} />
           {files.map((f) => (
             <div
               key={f}
-              className="w-12 text-center text-xs text-zinc-500 font-mono"
+              style={{ width: cellSize }}
+              className="text-center text-xs text-zinc-500 font-mono"
             >
               {f}
             </div>
@@ -188,7 +197,8 @@ export function ShogiBoard({
             {ranks.map((r) => (
               <div
                 key={r}
-                className="w-6 h-12 flex items-center justify-center text-xs text-zinc-500"
+                style={{ width: labelW, height: cellSize }}
+                className="flex items-center justify-center text-xs text-zinc-500"
               >
                 {rankKanji(r)}
               </div>
@@ -204,7 +214,10 @@ export function ShogiBoard({
                 "repeating-linear-gradient(90deg, transparent, rgba(139,115,85,0.07) 1px, transparent 2px, transparent 13px)",
             }}
           >
-            <div className="grid grid-cols-9">
+            <div
+              className="grid grid-cols-9"
+              style={{ width: boardPx, height: boardPx }}
+            >
               {ranks.map((rank) =>
                 files.map((file) => {
                   const sq = coordsToSquare(file, rank);
@@ -218,8 +231,9 @@ export function ShogiBoard({
                   return (
                     <button
                       key={`${file}-${rank}`}
+                      style={{ width: cellSize, height: cellSize }}
                       className={`
-                        w-12 h-12 border border-amber-800/25 flex items-center justify-center
+                        border border-amber-800/25 flex items-center justify-center
                         relative transition-all duration-100
                         ${isSelected ? "bg-sky-400/25 ring-2 ring-sky-400/60 z-10" : ""}
                         ${isLastMove && !isSelected ? "bg-amber-500/20" : ""}
@@ -230,7 +244,10 @@ export function ShogiBoard({
                       type="button"
                     >
                       {isLegalDest && !piece && (
-                        <div className="absolute w-3.5 h-3.5 bg-sky-500/35 rounded-full" />
+                        <div
+                          className="absolute bg-sky-500/35 rounded-full"
+                          style={{ width: dotSize, height: dotSize }}
+                        />
                       )}
                       {isLegalDest && piece && (
                         <div className="absolute inset-0.5 ring-2 ring-sky-500/50 ring-inset rounded-sm" />
@@ -246,6 +263,7 @@ export function ShogiBoard({
                           flipped={flipped}
                           isSelected={isSelected}
                           animate={isLastMovedTo}
+                          size={pieceSize}
                         />
                       )}
                     </button>
@@ -256,20 +274,22 @@ export function ShogiBoard({
 
             <svg
               className="absolute inset-0 pointer-events-none"
-              viewBox="0 0 432 432"
-              width={432}
-              height={432}
+              viewBox={`0 0 ${boardPx} ${boardPx}`}
+              width={boardPx}
+              height={boardPx}
             >
               {arrows.map((arrow, i) => {
                 const from = fileRankToPixel(
                   arrow.fromFile,
                   arrow.fromRank,
                   flipped,
+                  cellSize,
                 );
                 const to = fileRankToPixel(
                   arrow.toFile,
                   arrow.toRank,
                   flipped,
+                  cellSize,
                 );
                 return (
                   <Arrow
@@ -290,6 +310,7 @@ export function ShogiBoard({
                 rank={captureSquare.rank}
                 flipped={flipped}
                 trigger={captureTrigger}
+                cellSize={cellSize}
               />
             )}
           </div>
@@ -302,6 +323,7 @@ export function ShogiBoard({
         isActive={position.turn === bottomColor}
         selectedDrop={position.turn === bottomColor ? selectedDrop : null}
         onPieceClick={handleHandClick}
+        cellSize={cellSize}
       />
 
       {showPromotion && (
@@ -336,10 +358,11 @@ function fileRankToPixel(
   file: number,
   rank: number,
   flipped: boolean,
+  cellSize: number,
 ): { x: number; y: number } {
   const col = flipped ? file - 1 : 9 - file;
   const row = flipped ? 9 - rank : rank - 1;
-  return { x: col * 48 + 24, y: row * 48 + 24 };
+  return { x: col * cellSize + cellSize / 2, y: row * cellSize + cellSize / 2 };
 }
 
 function rankKanji(rank: number): string {

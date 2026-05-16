@@ -7,6 +7,7 @@ type Props = {
   rank: number;
   flipped: boolean;
   trigger: number;
+  cellSize?: number;
 };
 
 type Particle = {
@@ -22,28 +23,31 @@ type Particle = {
 
 const COLORS = ["#FFD700", "#FF8C00", "#FF4500", "#FFFFFF", "#FFA500"];
 
-export function CaptureEffect({ file, rank, flipped, trigger }: Props) {
+export function CaptureEffect({ file, rank, flipped, trigger, cellSize = 48 }: Props) {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [flash, setFlash] = useState(false);
+
+  const boardPx = cellSize * 9;
 
   useEffect(() => {
     if (trigger === 0) return;
 
     const col = flipped ? file - 1 : 9 - file;
     const row = flipped ? 9 - rank : rank - 1;
-    const cx = col * 48 + 24;
-    const cy = row * 48 + 24;
+    const cx = col * cellSize + cellSize / 2;
+    const cy = row * cellSize + cellSize / 2;
 
+    const speedScale = cellSize / 48;
     const newParticles: Particle[] = Array.from({ length: 12 }, (_, i) => {
       const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
-      const speed = 80 + Math.random() * 120;
+      const speed = (80 + Math.random() * 120) * speedScale;
       return {
         id: Date.now() + i,
         x: cx,
         y: cy,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        size: 3 + Math.random() * 4,
+        size: (3 + Math.random() * 4) * speedScale,
         color: COLORS[Math.floor(Math.random() * COLORS.length)],
         life: 1,
       };
@@ -70,7 +74,7 @@ export function CaptureEffect({ file, rank, flipped, trigger }: Props) {
     raf = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(raf);
-  }, [trigger, file, rank, flipped]);
+  }, [trigger, file, rank, flipped, cellSize]);
 
   if (particles.length === 0 && !flash) return null;
 
@@ -81,9 +85,9 @@ export function CaptureEffect({ file, rank, flipped, trigger }: Props) {
       )}
       <svg
         className="absolute inset-0 pointer-events-none z-20"
-        viewBox="0 0 432 432"
-        width={432}
-        height={432}
+        viewBox={`0 0 ${boardPx} ${boardPx}`}
+        width={boardPx}
+        height={boardPx}
       >
         {particles.map((p) => {
           const elapsed = 1 - p.life;

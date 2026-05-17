@@ -288,22 +288,21 @@ export function GameView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {!compact && (
-        <EvalGraph
-          evalHistory={evalHistory}
-          currentIndex={viewIndex}
-          onClickMove={goTo}
-          width={boardPx}
-        />
-      )}
+      <EvalGraph
+        evalHistory={evalHistory}
+        currentIndex={viewIndex}
+        onClickMove={goTo}
+        width={boardPx}
+        compact={compact}
+      />
 
-      {!compact && (
-        <ArrowTimerMeter
-          elapsed={thinkingElapsed}
-          settings={settings}
-          active={isPlayerTurn && isLive && engineReady && !game.isEnd}
-        />
-      )}
+      <ArrowTimerMeter
+        elapsed={thinkingElapsed}
+        settings={settings}
+        active={isPlayerTurn && isLive && engineReady && !game.isEnd}
+        compact={compact}
+        width={compact ? boardPx : undefined}
+      />
 
       <div className={`flex flex-col items-center gap-1 ${compact ? "mt-1" : "mt-2 gap-1.5 min-h-[80px]"}`}>
         <div className={`${compact ? "h-7" : "h-10"} flex items-center justify-center`}>

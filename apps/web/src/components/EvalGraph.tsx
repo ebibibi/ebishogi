@@ -5,6 +5,7 @@ type Props = {
   currentIndex: number;
   onClickMove?: (index: number) => void;
   width?: number;
+  compact?: boolean;
 };
 
 const W = 400;
@@ -21,7 +22,7 @@ function cpToY(cp: number | null): number {
   return H / 2 - (c / MAX_CP) * (H / 2 - PAD);
 }
 
-export function EvalGraph({ evalHistory, currentIndex, onClickMove, width: containerWidth }: Props) {
+export function EvalGraph({ evalHistory, currentIndex, onClickMove, width: containerWidth, compact = false }: Props) {
   if (evalHistory.length < 2) return null;
 
   const points = evalHistory.map((cp, i) => ({
@@ -38,10 +39,10 @@ export function EvalGraph({ evalHistory, currentIndex, onClickMove, width: conta
   const cur = points[currentIndex];
 
   return (
-    <div className="mt-2 px-1" style={{ width: containerWidth ?? 460, maxWidth: "100%" }}>
+    <div className={`${compact ? "mt-0.5" : "mt-2"} px-1`} style={{ width: containerWidth ?? 460, maxWidth: "100%" }}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-20 rounded-lg bg-zinc-800/60"
+        className={`w-full ${compact ? "h-10" : "h-20"} rounded-lg bg-zinc-800/60`}
         preserveAspectRatio="none"
       >
         <line

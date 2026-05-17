@@ -3,16 +3,6 @@
 import type { Color, Role } from "shogiops/types";
 import { PieceSVG } from "./PieceSVG";
 
-const ROLE_KANJI: Record<string, string> = {
-  rook: "飛",
-  bishop: "角",
-  gold: "金",
-  silver: "銀",
-  knight: "桂",
-  lance: "香",
-  pawn: "歩",
-};
-
 const HAND_ORDER: Role[] = [
   "rook",
   "bishop",
@@ -136,19 +126,15 @@ export function HandPanel({
     );
   }
 
-  const large = cellSize >= 64;
-  const textSize = large ? "text-base" : "text-sm";
-  const kanjiSize = large ? "text-lg" : "text-base";
-  const padX = large ? "px-3" : "px-2";
-  const padY = large ? "py-1.5" : "py-1";
+  const handPieceSize = Math.max(24, Math.floor(cellSize * 0.5));
 
   return (
     <div
       className={`
-        flex flex-col gap-1 p-2 rounded-lg
+        flex flex-col items-center gap-1 p-2 rounded-lg
         ${isActive ? "bg-zinc-700/80 ring-2 ring-amber-500/40" : "bg-zinc-800/60"}
       `}
-      style={{ minWidth: large ? 72 : 64 }}
+      style={{ minWidth: handPieceSize + 24 }}
     >
       <div className="text-xs text-center text-zinc-400 mb-1">
         {color === "sente" ? "☗先手" : "☖後手"}
@@ -162,20 +148,25 @@ export function HandPanel({
             <button
               key={role}
               className={`
-                flex items-center gap-1 ${padX} ${padY} rounded ${textSize}
+                relative flex items-center justify-center rounded
                 transition-colors duration-100
                 ${isSelected ? "bg-amber-600/40 ring-1 ring-amber-400" : "hover:bg-zinc-600/50"}
-                ${isActive ? "cursor-pointer text-zinc-200" : "cursor-default text-zinc-500"}
+                ${isActive ? "cursor-pointer" : "cursor-default opacity-60"}
               `}
+              style={{ width: handPieceSize + 12, height: handPieceSize + 8 }}
               onClick={() => isActive && onPieceClick(role)}
               type="button"
               disabled={!isActive}
             >
-              <span className={`font-bold ${kanjiSize}`}>
-                {ROLE_KANJI[role] ?? role}
-              </span>
+              <PieceSVG
+                piece={{ role, color }}
+                flipped={flipped}
+                size={handPieceSize}
+              />
               {count > 1 && (
-                <span className="text-xs text-zinc-400">{count}</span>
+                <span className="absolute -bottom-0.5 -right-0.5 text-[10px] font-bold text-white bg-red-600 rounded-full min-w-[16px] h-[16px] flex items-center justify-center leading-none px-0.5">
+                  {count}
+                </span>
               )}
             </button>
           );

@@ -6,6 +6,8 @@ type Props = {
   elapsed: number;
   settings: GameSettings;
   active: boolean;
+  compact?: boolean;
+  width?: number;
 };
 
 type Threshold = {
@@ -15,7 +17,7 @@ type Threshold = {
   activeColor: string;
 };
 
-export function ArrowTimerMeter({ elapsed, settings, active }: Props) {
+export function ArrowTimerMeter({ elapsed, settings, active, compact = false, width }: Props) {
   const thresholds: Threshold[] = [
     {
       seconds: settings.arrowDelay3rd,
@@ -44,8 +46,11 @@ export function ArrowTimerMeter({ elapsed, settings, active }: Props) {
   const progress = active ? Math.min(elapsed / displayMax, 1) : 0;
 
   return (
-    <div className="w-full max-w-md mt-2">
-      <div className="relative h-5 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
+    <div
+      className={`w-full ${compact ? "mt-0.5" : "mt-2"}`}
+      style={width ? { width, maxWidth: "100%" } : { maxWidth: "28rem" }}
+    >
+      <div className={`relative ${compact ? "h-3" : "h-5"} bg-zinc-800 rounded-full overflow-hidden border border-zinc-700`}>
         <div
           className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-900/60 via-amber-700/50 to-amber-500/40 transition-[width] duration-100 ease-linear"
           style={{ width: `${progress * 100}%` }}
@@ -58,18 +63,20 @@ export function ArrowTimerMeter({ elapsed, settings, active }: Props) {
               <div
                 className={`absolute inset-y-0 w-0.5 ${reached ? t.activeColor : t.color} transition-colors duration-300`}
               />
-              <div
-                className={`absolute -top-0.5 -translate-x-1/2 left-0 text-[10px] font-bold leading-none px-1 rounded ${
-                  reached ? "text-white" : "text-zinc-500"
-                } transition-colors duration-300`}
-              >
-                {t.label}
-              </div>
+              {!compact && (
+                <div
+                  className={`absolute -top-0.5 -translate-x-1/2 left-0 text-[10px] font-bold leading-none px-1 rounded ${
+                    reached ? "text-white" : "text-zinc-500"
+                  } transition-colors duration-300`}
+                >
+                  {t.label}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
-      {active && (
+      {active && !compact && (
         <div className="flex justify-between text-[10px] text-zinc-500 mt-0.5 px-1">
           <span>{Math.floor(elapsed)}秒</span>
           <span>{maxSeconds}秒</span>

@@ -24,7 +24,7 @@ export function useBoardSize(
         const containerH = containerRef.current?.clientHeight;
         const vh = containerH ?? window.visualViewport?.height ?? window.innerHeight;
         const fromW = Math.floor((vw - 16) / 9);
-        const fromH = Math.floor((vh - 200) / 9);
+        const fromH = Math.floor((vh - 260) / 9);
         return {
           cellSize: Math.max(32, Math.min(fromW, fromH)),
           compact: true,

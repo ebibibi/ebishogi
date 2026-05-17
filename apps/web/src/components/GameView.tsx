@@ -13,6 +13,7 @@ import { useBoardSize } from "@/hooks/useBoardSize";
 import { useGameHistory } from "@/hooks/useGameHistory";
 import { useSettings } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
+import { useTimer, formatTime } from "@/hooks/useTimer";
 import {
   applyMoveToGame,
   usiToMove,
@@ -44,6 +45,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const { cellSize, compact } = useBoardSize(containerRef);
   const boardPx = cellSize * 9;
   const [playerColor] = useState<Color>("sente");
+  const { senteTime, goteTime, reset: resetTimer } = useTimer(
+    game.turn,
+    isLive,
+    game.moveCount,
+  );
   const [aiThinking, setAiThinking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -222,9 +228,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
     aiThinkingRef.current = false;
     getEngine().cancelSearch();
     reset();
+    resetTimer();
     setMessage(null);
     setAiThinking(false);
-  }, [reset]);
+  }, [reset, resetTimer]);
 
   const handleTakeBack = useCallback(() => {
     abortRef.current = true;
@@ -262,6 +269,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
             captureTrigger={captureTrigger}
             cellSize={cellSize}
             compact={compact}
+            topPlayerName="CPU"
+            bottomPlayerName="あなた"
+            topTimer={formatTime(goteTime)}
+            bottomTimer={formatTime(senteTime)}
           />
           <GameControls
             canTakeBack={canTakeBack && isLive}

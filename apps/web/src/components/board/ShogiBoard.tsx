@@ -38,6 +38,10 @@ type Props = {
   captureTrigger?: number;
   cellSize?: number;
   compact?: boolean;
+  topPlayerName?: string;
+  bottomPlayerName?: string;
+  topTimer?: string;
+  bottomTimer?: string;
 };
 
 export function ShogiBoard({
@@ -53,6 +57,10 @@ export function ShogiBoard({
   captureTrigger = 0,
   cellSize = 48,
   compact = false,
+  topPlayerName,
+  bottomPlayerName,
+  topTimer,
+  bottomTimer,
 }: Props) {
   const [selected, setSelected] = useState<Square | null>(null);
   const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
@@ -331,6 +339,10 @@ export function ShogiBoard({
       onPieceClick={handleHandClick}
       cellSize={cellSize}
       horizontal={compact}
+      flipped={flipped}
+      playerName={topPlayerName}
+      timer={topTimer}
+      isBottom={false}
     />
   );
 
@@ -343,13 +355,17 @@ export function ShogiBoard({
       onPieceClick={handleHandClick}
       cellSize={cellSize}
       horizontal={compact}
+      flipped={flipped}
+      playerName={bottomPlayerName}
+      timer={bottomTimer}
+      isBottom={true}
     />
   );
 
   return (
     <div className="relative">
       {compact ? (
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col" style={{ width: boardPx }}>
           {handTop}
           {boardSection}
           {handBottom}

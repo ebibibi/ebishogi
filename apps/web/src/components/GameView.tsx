@@ -239,7 +239,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     : null;
 
   return (
-    <div className={`min-h-screen bg-zinc-900 text-white flex flex-col items-center select-none ${compact ? "justify-start pt-2" : "justify-center p-1"}`}>
+    <div className={`bg-zinc-900 text-white flex flex-col items-center select-none ${compact ? "min-h-[100dvh] justify-start pt-1" : "min-h-screen justify-center p-1"}`}>
       {!compact && <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>}
 
       <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>

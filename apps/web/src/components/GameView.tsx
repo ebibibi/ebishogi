@@ -40,7 +40,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
   } = useGameHistory();
 
   const { settings, updateSettings, resetSettings } = useSettings();
-  const { cellSize, compact } = useBoardSize();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { cellSize, compact } = useBoardSize(containerRef);
   const boardPx = cellSize * 9;
   const [playerColor] = useState<Color>("sente");
   const [aiThinking, setAiThinking] = useState(false);
@@ -239,7 +240,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
     : null;
 
   return (
-    <div className={`bg-zinc-900 text-white flex flex-col items-center select-none ${compact ? "min-h-[100dvh] justify-start pt-1" : "min-h-screen justify-center p-1"}`}>
+    <div
+      ref={containerRef}
+      className={`bg-zinc-900 text-white flex flex-col items-center select-none ${compact ? "h-[100dvh] overflow-hidden justify-start pt-1" : "min-h-screen justify-center p-1"}`}
+    >
       {!compact && <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>}
 
       <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>

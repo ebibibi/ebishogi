@@ -12,13 +12,13 @@ export function useBoardSize(): BoardLayout {
 
   useEffect(() => {
     function calc(): BoardLayout {
-      const vh = window.innerHeight;
       const vw = window.innerWidth;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
       const compact = vw < 640;
 
       if (compact) {
         const fromW = Math.floor((vw - 16) / 9);
-        const fromH = Math.floor((vh - 200) / 9);
+        const fromH = Math.floor((vh - 180) / 9);
         return { cellSize: Math.max(32, Math.min(fromW, fromH)), compact: true };
       }
 
@@ -28,8 +28,13 @@ export function useBoardSize(): BoardLayout {
     }
     setLayout(calc());
     const handler = () => setLayout(calc());
+    const vp = window.visualViewport;
+    if (vp) vp.addEventListener("resize", handler);
     window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    return () => {
+      if (vp) vp.removeEventListener("resize", handler);
+      window.removeEventListener("resize", handler);
+    };
   }, []);
 
   return layout;

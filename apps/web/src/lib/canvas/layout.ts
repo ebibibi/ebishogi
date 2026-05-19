@@ -56,9 +56,10 @@ const CONTROLS_H = 28;
 const EVAL_H = 30;
 const METER_H = 8;
 const INFO_H = 36;
-const BTN_H = 24;
-const GAP = 2;
-const FIXED = CONTROLS_H + EVAL_H + METER_H + INFO_H + BTN_H + GAP * 7;
+const BTN_H = 28;
+const GAP = 3;
+const BOTTOM_PAD = 6;
+const FIXED = CONTROLS_H + EVAL_H + METER_H + INFO_H + BTN_H + GAP * 7 + BOTTOM_PAD;
 
 export function calcLayout(vw: number, vh: number): CanvasLayout {
   const dpr =
@@ -241,7 +242,7 @@ export function getControlButtons(
 
 export function getActionButtons(layout: CanvasLayout): ButtonDef[] {
   const { actionButtons } = layout;
-  const btnH = 20;
+  const btnH = 24;
   const gap = 6;
   const y = actionButtons.y + (actionButtons.h - btnH) / 2;
 

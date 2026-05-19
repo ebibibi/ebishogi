@@ -25,6 +25,8 @@ export type AnimState = {
   captureTime: number;
   flash: boolean;
   shakeX: number;
+  moveRipple: { cx: number; cy: number; startTime: number } | null;
+  alertAnim: { text: string; severity: string; startTime: number } | null;
 };
 
 export type RenderState = {
@@ -41,6 +43,7 @@ export type RenderState = {
   legalDests: Set<number>;
   arrows: readonly ArrowData[];
   evalHistory: (number | null)[];
+  currentEval: number | null;
   viewIndex: number;
   thinkingElapsed: number;
   settings: GameSettings;
@@ -106,6 +109,7 @@ export function drawCanvas(
   drawHandPanel(ctx, layout, state, images, true);
   drawBoard(ctx, layout, state, images);
   drawArrows(ctx, layout, state);
+  drawMoveRipple(ctx, layout, anim);
   drawHandPanel(ctx, layout, state, images, false);
 
   ctx.restore();
@@ -132,6 +136,7 @@ export function drawCanvas(
   }
 
   if (state.showPromotion) drawPromotionDialog(ctx, layout);
+  drawBadMoveOverlay(ctx, layout, anim);
 
   ctx.restore();
 }
@@ -242,8 +247,13 @@ function drawBoard(
 
           ctx.save();
           if (isSelected) {
-            ctx.shadowColor = "rgba(212,175,55,0.6)";
-            ctx.shadowBlur = 6;
+            ctx.shadowColor = "rgba(212,175,55,0.7)";
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 3;
+          } else {
+            ctx.shadowColor = "rgba(0,0,0,0.4)";
+            ctx.shadowBlur = 3;
+            ctx.shadowOffsetX = 1;
             ctx.shadowOffsetY = 2;
           }
 
@@ -495,6 +505,8 @@ function drawArrow(
 
   ctx.save();
   ctx.globalAlpha = opacity;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = width * 3;
 
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
@@ -599,6 +611,18 @@ function drawEvalGraph(
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+
+  if (state.currentEval !== null) {
+    const ev = fmtEval(state.currentEval);
+    const efs = Math.max(10, Math.floor(evalGraph.h * 0.4));
+    ctx.font = `bold ${efs}px monospace`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillText(ev.text, evalGraph.x + evalGraph.w - 3, evalGraph.y + 3);
+    ctx.fillStyle = ev.color;
+    ctx.fillText(ev.text, evalGraph.x + evalGraph.w - 4, evalGraph.y + 2);
+  }
 }
 
 // ── Timer Meter ───────────────────────────────────────
@@ -681,22 +705,7 @@ function drawInfo(
   const cx = infoArea.x + infoArea.w / 2;
   let y = infoArea.y + 2;
 
-  if (state.badMoveAlert && state.isLive) {
-    const sev = state.badMoveAlert.severity;
-    const bg =
-      sev === "blunder"
-        ? "rgba(185,28,28,0.4)"
-        : sev === "mistake"
-          ? "rgba(234,88,12,0.4)"
-          : "rgba(202,138,4,0.3)";
-    const fg =
-      sev === "blunder"
-        ? "#fecaca"
-        : sev === "mistake"
-          ? "#fed7aa"
-          : "#fef08a";
-    drawPill(ctx, cx, y, state.badMoveAlert.message, bg, fg, fs);
-  } else if (state.message) {
+  if (state.message) {
     const m = state.message;
     const bg = m.includes("勝ち")
       ? "rgba(202,138,4,0.3)"
@@ -724,11 +733,14 @@ function drawInfo(
   y += fs + 10;
 
   const parts = [
-    state.turn === "sente" ? "先手の番" : "後手の番",
-    `${state.moveCount}手目`,
+    state.turn === "sente" ? "先手" : "後手",
+    `${state.moveCount}手`,
   ];
   if (!state.engineReady) parts.push("AI読込中...");
   else if (state.aiThinking) parts.push("CPU思考中...");
+  if (state.currentEval !== null && state.engineReady && !state.aiThinking) {
+    parts.push(fmtEval(state.currentEval).text);
+  }
 
   ctx.fillStyle = "#a1a1aa";
   ctx.font = `${sfs}px sans-serif`;
@@ -814,6 +826,111 @@ function drawParticles(
     );
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// ── Move Ripple ──────────────────────────────────
+
+function drawMoveRipple(
+  ctx: CanvasRenderingContext2D,
+  layout: CanvasLayout,
+  anim: AnimState,
+) {
+  if (!anim.moveRipple) return;
+  const elapsed = (performance.now() - anim.moveRipple.startTime) / 1000;
+  if (elapsed > 0.4) return;
+
+  const progress = elapsed / 0.4;
+  const maxRadius = layout.cellSize * 0.6;
+  const radius = maxRadius * progress;
+  const alpha = (1 - progress) * 0.5;
+
+  const cx = layout.board.x + anim.moveRipple.cx;
+  const cy = layout.board.y + anim.moveRipple.cy;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(56,189,248,0.15)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ── Bad Move Overlay ─────────────────────────────
+
+function drawBadMoveOverlay(
+  ctx: CanvasRenderingContext2D,
+  layout: CanvasLayout,
+  anim: AnimState,
+) {
+  if (!anim.alertAnim) return;
+  const elapsed = (performance.now() - anim.alertAnim.startTime) / 1000;
+  if (elapsed > 3.0) return;
+
+  const { text, severity } = anim.alertAnim;
+  let bgAlpha = 0.35;
+  if (elapsed < 0.15) bgAlpha = (elapsed / 0.15) * 0.35;
+  else if (elapsed > 2.5) bgAlpha = 0.35 * (1 - (elapsed - 2.5) / 0.5);
+
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`;
+  ctx.fillRect(0, 0, layout.canvasW, layout.canvasH);
+
+  let scale = 1;
+  let alpha = 1;
+  if (elapsed < 0.12) {
+    scale = 1.8 - 0.8 * (elapsed / 0.12);
+  } else if (elapsed < 0.22) {
+    scale = 1 + 0.06 * Math.sin(((elapsed - 0.12) / 0.1) * Math.PI);
+  } else if (elapsed > 2.5) {
+    alpha = 1 - (elapsed - 2.5) / 0.5;
+    scale = 1 + (elapsed - 2.5) * 0.15;
+  }
+
+  const cx = layout.canvasW / 2;
+  const cy = layout.canvasH * 0.38;
+
+  const colors: Record<string, { bg: string; fg: string; outline: string }> = {
+    blunder: { bg: "rgba(185,28,28,0.9)", fg: "#fff", outline: "#fca5a5" },
+    mistake: { bg: "rgba(234,88,12,0.9)", fg: "#fff", outline: "#fed7aa" },
+    inaccuracy: { bg: "rgba(161,98,7,0.85)", fg: "#fff", outline: "#fef08a" },
+  };
+  const c = colors[severity] ?? colors.inaccuracy;
+  const fontSize = Math.max(36, Math.floor(layout.cellSize * 0.75));
+
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  const tw = ctx.measureText(text).width;
+  const pw = tw + 48;
+  const ph = fontSize + 28;
+
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = c.bg;
+  rr(ctx, -pw / 2, -ph / 2, pw, ph, 16);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = c.outline;
+  ctx.lineWidth = 2;
+  rr(ctx, -pw / 2, -ph / 2, pw, ph, 16);
+  ctx.stroke();
+
+  ctx.fillStyle = c.fg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 6;
+  ctx.fillText(text, 0, 0);
   ctx.restore();
 }
 
@@ -903,6 +1020,16 @@ function rr(
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
+}
+
+function fmtEval(cp: number): { text: string; color: string } {
+  const sign = cp >= 0 ? "+" : "";
+  const text = `${sign}${cp}`;
+  if (cp > 300) return { text, color: "#22c55e" };
+  if (cp > 100) return { text, color: "#d4af37" };
+  if (cp > -100) return { text, color: "#a1a1aa" };
+  if (cp > -300) return { text, color: "#f97316" };
+  return { text, color: "#ef4444" };
 }
 
 function fmtTime(seconds: number): string {

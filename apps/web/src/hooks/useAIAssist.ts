@@ -24,9 +24,9 @@ type AIAssistResult = {
 };
 
 const ARROW_STYLES = [
-  { color: "#d4af37", opacity: 0.85, width: 5 },
-  { color: "#c0c0c0", opacity: 0.55, width: 3.5 },
-  { color: "#8b6914", opacity: 0.35, width: 2.5 },
+  { color: "#FFD700", opacity: 0.95, width: 8 },
+  { color: "#87CEEB", opacity: 0.8, width: 6 },
+  { color: "#CD853F", opacity: 0.6, width: 4.5 },
 ];
 
 function candidateToArrow(
@@ -166,8 +166,10 @@ export function useAIAssist(
   }, [candidates, visibleRanks]);
 
   useEffect(() => {
-    if (active) setBadMoveAlert(null);
-  }, [active]);
+    if (!badMoveAlert) return;
+    const timer = setTimeout(() => setBadMoveAlert(null), 3000);
+    return () => clearTimeout(timer);
+  }, [badMoveAlert]);
 
   const evaluatePlayerMove = useCallback(
     (cpuScore: number) => {

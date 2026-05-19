@@ -102,6 +102,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
     captureTime: 0,
     flash: false,
     shakeX: 0,
+    moveRipple: null,
+    alertAnim: null,
   });
 
   useEffect(() => {
@@ -128,6 +130,35 @@ export function GameView({ onBack }: { onBack: () => void }) {
     setLegalDests(new Set());
   }, [game.position]);
 
+  useEffect(() => {
+    if (!badMoveAlert) {
+      animRef.current.alertAnim = null;
+      return;
+    }
+    let cancelled = false;
+    animRef.current.alertAnim = {
+      text: badMoveAlert.message,
+      severity: badMoveAlert.severity,
+      startTime: performance.now(),
+    };
+    const animate = () => {
+      if (cancelled || !animRef.current.alertAnim) return;
+      const elapsed =
+        (performance.now() - animRef.current.alertAnim.startTime) / 1000;
+      if (elapsed < 3.0) {
+        forceRender((n) => n + 1);
+        requestAnimationFrame(animate);
+      } else {
+        animRef.current.alertAnim = null;
+        forceRender((n) => n + 1);
+      }
+    };
+    requestAnimationFrame(animate);
+    return () => {
+      cancelled = true;
+    };
+  }, [badMoveAlert]);
+
   const checkSquare = game.isCheck
     ? findKingSquare(game.position, game.turn)
     : null;
@@ -152,6 +183,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
       legalDests,
       arrows,
       evalHistory,
+      currentEval,
       viewIndex,
       thinkingElapsed,
       settings,
@@ -221,6 +253,33 @@ export function GameView({ onBack }: { onBack: () => void }) {
     [flipped, layout.cellSize],
   );
 
+  const triggerMoveRipple = useCallback(
+    (sq: number) => {
+      const { file, rank } = squareToCoords(sq);
+      const col = flipped ? file - 1 : 9 - file;
+      const row = flipped ? 9 - rank : rank - 1;
+      animRef.current.moveRipple = {
+        cx: col * layout.cellSize + layout.cellSize / 2,
+        cy: row * layout.cellSize + layout.cellSize / 2,
+        startTime: performance.now(),
+      };
+      const animate = () => {
+        if (!animRef.current.moveRipple) return;
+        const elapsed =
+          (performance.now() - animRef.current.moveRipple.startTime) / 1000;
+        if (elapsed < 0.4) {
+          forceRender((n) => n + 1);
+          requestAnimationFrame(animate);
+        } else {
+          animRef.current.moveRipple = null;
+          forceRender((n) => n + 1);
+        }
+      };
+      requestAnimationFrame(animate);
+    },
+    [flipped, layout.cellSize],
+  );
+
   // ── Move execution ──────────────────────────────────
   const commitMove = useCallback(
     (move: MoveOrDrop) => {
@@ -235,6 +294,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
         triggerCapture(move.to);
       } else {
         playMove();
+        triggerMoveRipple(move.to);
       }
 
       pushMove(newGame, currentEval);
@@ -260,6 +320,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
       playCapture,
       playCheck,
       triggerCapture,
+      triggerMoveRipple,
     ],
   );
 
@@ -432,6 +493,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
           triggerCapture(move.to);
         } else {
           playMove();
+          triggerMoveRipple(move.to);
         }
 
         const cpuScore = result.candidates[0]?.score;
@@ -476,6 +538,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     playCapture,
     playCheck,
     triggerCapture,
+    triggerMoveRipple,
   ]);
 
   // ── Canvas click ────────────────────────────────────

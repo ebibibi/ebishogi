@@ -2,44 +2,24 @@
 
 import { useState, useEffect, type RefObject } from "react";
 
-export type BoardLayout = {
-  cellSize: number;
-  compact: boolean;
-};
-
 export function useBoardSize(
   containerRef: RefObject<HTMLDivElement | null>,
-): BoardLayout {
-  const [layout, setLayout] = useState<BoardLayout>({
-    cellSize: 48,
-    compact: false,
-  });
+): { cellSize: number } {
+  const [cellSize, setCellSize] = useState(48);
 
   useEffect(() => {
-    function calc(): BoardLayout {
+    function calc(): number {
       const vw = window.innerWidth;
-      const compact = vw < 640;
-
-      if (compact) {
-        const containerH = containerRef.current?.clientHeight;
-        const vh = containerH ?? window.visualViewport?.height ?? window.innerHeight;
-        const fromW = Math.floor((vw - 16) / 9);
-        const fromH = Math.floor((vh - 260) / 9);
-        return {
-          cellSize: Math.max(32, Math.min(fromW, fromH)),
-          compact: true,
-        };
-      }
-
-      const vh = window.visualViewport?.height ?? window.innerHeight;
-      const fromH = Math.floor((vh - 260) / 9);
-      const fromW = Math.floor((vw - 260) / 9);
-      return { cellSize: Math.max(48, Math.min(fromH, fromW)), compact: false };
+      const containerH = containerRef.current?.clientHeight;
+      const vh =
+        containerH ?? window.visualViewport?.height ?? window.innerHeight;
+      const fromH = Math.floor((vh - 220) / 10.1);
+      const fromW = Math.floor((vw - 16) / 9);
+      return Math.max(32, Math.min(fromW, fromH));
     }
 
-    setLayout(calc());
-
-    const handler = () => setLayout(calc());
+    setCellSize(calc());
+    const handler = () => setCellSize(calc());
     const el = containerRef.current;
     const observer = el ? new ResizeObserver(handler) : null;
     if (el) observer!.observe(el);
@@ -54,5 +34,5 @@ export function useBoardSize(
     };
   }, [containerRef]);
 
-  return layout;
+  return { cellSize };
 }

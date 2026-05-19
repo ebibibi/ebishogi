@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { MoveOrDrop, Color } from "shogiops/types";
 import { ShogiBoard } from "@/components/board";
-import { EvalBar } from "@/components/EvalBar";
 import { ArrowTimerMeter } from "@/components/ArrowTimerMeter";
 import { EvalGraph } from "@/components/EvalGraph";
 import { GameControls } from "@/components/GameControls";
@@ -42,7 +41,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
 
   const { settings, updateSettings, resetSettings } = useSettings();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { cellSize, compact } = useBoardSize(containerRef);
+  const { cellSize } = useBoardSize(containerRef);
   const boardPx = cellSize * 9;
   const [playerColor] = useState<Color>("sente");
   const { senteTime, goteTime, reset: resetTimer } = useTimer(
@@ -249,129 +248,122 @@ export function GameView({ onBack }: { onBack: () => void }) {
   return (
     <div
       ref={containerRef}
-      className={`bg-zinc-900 text-white flex flex-col items-center select-none ${compact ? "h-[100dvh] overflow-hidden justify-start pt-1" : "min-h-screen justify-center p-1"}`}
+      className="h-[100dvh] w-full bg-zinc-900 text-white flex flex-col items-center justify-center overflow-hidden select-none"
     >
-      {!compact && <h1 className="text-xl font-bold mb-1 tracking-tight">ebishogi</h1>}
+      <div className={`flex flex-col items-center ${shaking ? "animate-shake" : ""}`} style={{ width: boardPx }}>
+        <ShogiBoard
+          position={game.position}
+          orientation={playerColor}
+          arrows={arrows}
+          onMove={handleMove}
+          lastMove={game.lastMove}
+          interactive={isInteractive}
+          checkSquare={checkSquare ?? undefined}
+          moveCount={game.moveCount}
+          captureSquare={captureInfo}
+          captureTrigger={captureTrigger}
+          cellSize={cellSize}
+          topPlayerName="CPU"
+          bottomPlayerName="あなた"
+          topTimer={formatTime(goteTime)}
+          bottomTimer={formatTime(senteTime)}
+        />
 
-      <div className={`flex items-start gap-2 ${shaking ? "animate-shake" : ""}`}>
-        {!compact && <EvalBar eval_cp={currentEval} height={boardPx} />}
-        <div className="flex flex-col items-center">
-          <ShogiBoard
-            position={game.position}
-            orientation={playerColor}
-            arrows={arrows}
-            onMove={handleMove}
-            lastMove={game.lastMove}
-            interactive={isInteractive}
-            checkSquare={checkSquare ?? undefined}
-            moveCount={game.moveCount}
-            captureSquare={captureInfo}
-            captureTrigger={captureTrigger}
-            cellSize={cellSize}
-            compact={compact}
-            topPlayerName="CPU"
-            bottomPlayerName="あなた"
-            topTimer={formatTime(goteTime)}
-            bottomTimer={formatTime(senteTime)}
-          />
-          <GameControls
-            canTakeBack={canTakeBack && isLive}
-            canStepBack={canStepBack}
-            canStepForward={canStepForward}
-            isLive={isLive}
-            onTakeBack={handleTakeBack}
-            onStepBack={stepBack}
-            onStepForward={stepForward}
-            onGoToLatest={goToLatest}
-            onResume={resumeFromCurrent}
-          />
-        </div>
-      </div>
+        <GameControls
+          canTakeBack={canTakeBack && isLive}
+          canStepBack={canStepBack}
+          canStepForward={canStepForward}
+          isLive={isLive}
+          onTakeBack={handleTakeBack}
+          onStepBack={stepBack}
+          onStepForward={stepForward}
+          onGoToLatest={goToLatest}
+          onResume={resumeFromCurrent}
+        />
 
-      <EvalGraph
-        evalHistory={evalHistory}
-        currentIndex={viewIndex}
-        onClickMove={goTo}
-        width={boardPx}
-        compact={compact}
-      />
+        <EvalGraph
+          evalHistory={evalHistory}
+          currentIndex={viewIndex}
+          onClickMove={goTo}
+          width={boardPx}
+        />
 
-      <ArrowTimerMeter
-        elapsed={thinkingElapsed}
-        settings={settings}
-        active={isPlayerTurn && isLive && engineReady && !game.isEnd}
-        compact={compact}
-        width={compact ? boardPx : undefined}
-      />
+        <ArrowTimerMeter
+          elapsed={thinkingElapsed}
+          settings={settings}
+          active={isPlayerTurn && isLive && engineReady && !game.isEnd}
+          width={boardPx}
+        />
 
-      <div className={`flex flex-col items-center gap-1 ${compact ? "mt-1" : "mt-2 gap-1.5 min-h-[80px]"}`}>
-        <div className={`${compact ? "h-7" : "h-10"} flex items-center justify-center`}>
-          {badMoveAlert && isLive ? (
-            <div
-              className={`${compact ? "text-sm" : "text-lg"} font-bold px-3 py-1 rounded-lg animate-bounce ${
-                badMoveAlert.severity === "blunder"
-                  ? "bg-red-700/40 text-red-200"
-                  : badMoveAlert.severity === "mistake"
-                    ? "bg-orange-600/40 text-orange-200"
-                    : "bg-yellow-600/30 text-yellow-200"
-              }`}
+        <div className="flex flex-col items-center gap-1 mt-1">
+          <div className="h-7 flex items-center justify-center">
+            {badMoveAlert && isLive ? (
+              <div
+                className={`text-sm font-bold px-3 py-1 rounded-lg animate-bounce ${
+                  badMoveAlert.severity === "blunder"
+                    ? "bg-red-700/40 text-red-200"
+                    : badMoveAlert.severity === "mistake"
+                      ? "bg-orange-600/40 text-orange-200"
+                      : "bg-yellow-600/30 text-yellow-200"
+                }`}
+              >
+                {badMoveAlert.message}
+              </div>
+            ) : message ? (
+              <div
+                className={`text-sm font-bold px-3 py-1 rounded-lg ${
+                  message.includes("勝ち")
+                    ? "bg-yellow-600/30 text-yellow-300"
+                    : message.includes("王手")
+                      ? "bg-red-600/30 text-red-300"
+                      : "bg-gray-600/30 text-gray-300"
+                }`}
+              >
+                {message}
+              </div>
+            ) : !isLive ? (
+              <div className="text-amber-400/80 text-xs">
+                棋譜閲覧中（{viewIndex}手目）
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-3 text-xs text-zinc-400 h-4">
+            <span>{game.turn === "sente" ? "先手" : "後手"}の番</span>
+            <span>{game.moveCount}手目</span>
+            {!engineReady && (
+              <span className="text-amber-400 animate-pulse">
+                AI読込中...
+              </span>
+            )}
+            {aiThinking && engineReady && (
+              <span className="text-sky-400 animate-pulse">CPU思考中...</span>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleReset}
+              className="px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+              type="button"
             >
-              {badMoveAlert.message}
-            </div>
-          ) : message ? (
-            <div
-              className={`${compact ? "text-sm" : "text-lg"} font-bold px-3 py-1 rounded-lg ${
-                message.includes("勝ち")
-                  ? "bg-yellow-600/30 text-yellow-300"
-                  : message.includes("王手")
-                    ? "bg-red-600/30 text-red-300"
-                    : "bg-gray-600/30 text-gray-300"
-              }`}
+              新しい対局
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
+              type="button"
             >
-              {message}
-            </div>
-          ) : !isLive ? (
-            <div className="text-amber-400/80 text-xs">
-              棋譜閲覧中（{viewIndex}手目）
-            </div>
-          ) : null}
-        </div>
-
-        <div className={`flex items-center gap-3 ${compact ? "text-xs" : "text-sm"} text-zinc-400 h-4`}>
-          <span>{game.turn === "sente" ? "先手" : "後手"}の番</span>
-          <span>{game.moveCount}手目</span>
-          {!engineReady && (
-            <span className="text-amber-400 animate-pulse">
-              AI読込中...
-            </span>
-          )}
-          {aiThinking && engineReady && (
-            <span className="text-sky-400 animate-pulse">CPU思考中...</span>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleReset}
-            className={`${compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm"} bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors`}
-            type="button"
-          >
-            新しい対局
-          </button>
-          <button
-            onClick={() => setShowSettings(true)}
-            className={`${compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm"} bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors`}
-            type="button"
-          >
-            設定
-          </button>
-          <button
-            onClick={onBack}
-            className={`${compact ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm"} bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400`}
-            type="button"
-          >
-            トップへ
-          </button>
+              設定
+            </button>
+            <button
+              onClick={onBack}
+              className="px-3 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400"
+              type="button"
+            >
+              トップへ
+            </button>
+          </div>
         </div>
       </div>
 

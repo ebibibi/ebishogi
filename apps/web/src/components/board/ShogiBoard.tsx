@@ -37,7 +37,6 @@ type Props = {
   captureSquare?: { file: number; rank: number } | null;
   captureTrigger?: number;
   cellSize?: number;
-  compact?: boolean;
   topPlayerName?: string;
   bottomPlayerName?: string;
   topTimer?: string;
@@ -56,7 +55,6 @@ export function ShogiBoard({
   captureSquare,
   captureTrigger = 0,
   cellSize = 48,
-  compact = false,
   topPlayerName,
   bottomPlayerName,
   topTimer,
@@ -72,7 +70,6 @@ export function ShogiBoard({
   const flipped = orientation === "gote";
 
   const boardPx = cellSize * 9;
-  const labelW = Math.max(20, Math.floor(cellSize * 0.45));
   const pieceSize = Math.floor(cellSize * 0.92);
   const dotSize = Math.max(10, Math.floor(cellSize * 0.3));
 
@@ -177,39 +174,23 @@ export function ShogiBoard({
   const topColor = flipped ? "sente" : "gote";
   const bottomColor = flipped ? "gote" : "sente";
 
-  const boardSection = (
-    <>
-      <div className="relative">
-        {!compact && (
-          <div className="flex mb-1">
-            <div style={{ width: labelW }} />
-            {files.map((f) => (
-              <div
-                key={f}
-                style={{ width: cellSize }}
-                className="text-center text-xs text-zinc-500 font-mono"
-              >
-                {f}
-              </div>
-            ))}
-          </div>
-        )}
+  return (
+    <div className="relative">
+      <div className="flex flex-col" style={{ width: boardPx }}>
+        <HandPanel
+          pieces={getHandPieces(position, topColor)}
+          color={topColor}
+          isActive={position.turn === topColor}
+          selectedDrop={position.turn === topColor ? selectedDrop : null}
+          onPieceClick={handleHandClick}
+          cellSize={cellSize}
+          flipped={flipped}
+          playerName={topPlayerName}
+          timer={topTimer}
+          isBottom={false}
+        />
 
-        <div className="flex">
-          {!compact && (
-            <div className="flex flex-col">
-              {ranks.map((r) => (
-                <div
-                  key={r}
-                  style={{ width: labelW, height: cellSize }}
-                  className="flex items-center justify-center text-xs text-zinc-500"
-                >
-                  {rankKanji(r)}
-                </div>
-              ))}
-            </div>
-          )}
-
+        <div className="relative">
           <div
             className="relative shadow-xl rounded-sm"
             style={{
@@ -326,57 +307,20 @@ export function ShogiBoard({
             )}
           </div>
         </div>
+
+        <HandPanel
+          pieces={getHandPieces(position, bottomColor)}
+          color={bottomColor}
+          isActive={position.turn === bottomColor}
+          selectedDrop={position.turn === bottomColor ? selectedDrop : null}
+          onPieceClick={handleHandClick}
+          cellSize={cellSize}
+          flipped={flipped}
+          playerName={bottomPlayerName}
+          timer={bottomTimer}
+          isBottom={true}
+        />
       </div>
-    </>
-  );
-
-  const handTop = (
-    <HandPanel
-      pieces={getHandPieces(position, topColor)}
-      color={topColor}
-      isActive={position.turn === topColor}
-      selectedDrop={position.turn === topColor ? selectedDrop : null}
-      onPieceClick={handleHandClick}
-      cellSize={cellSize}
-      horizontal={compact}
-      flipped={flipped}
-      playerName={topPlayerName}
-      timer={topTimer}
-      isBottom={false}
-    />
-  );
-
-  const handBottom = (
-    <HandPanel
-      pieces={getHandPieces(position, bottomColor)}
-      color={bottomColor}
-      isActive={position.turn === bottomColor}
-      selectedDrop={position.turn === bottomColor ? selectedDrop : null}
-      onPieceClick={handleHandClick}
-      cellSize={cellSize}
-      horizontal={compact}
-      flipped={flipped}
-      playerName={bottomPlayerName}
-      timer={bottomTimer}
-      isBottom={true}
-    />
-  );
-
-  return (
-    <div className="relative">
-      {compact ? (
-        <div className="flex flex-col" style={{ width: boardPx }}>
-          {handTop}
-          {boardSection}
-          {handBottom}
-        </div>
-      ) : (
-        <div className="flex items-center gap-3">
-          {handTop}
-          {boardSection}
-          {handBottom}
-        </div>
-      )}
 
       {showPromotion && (
         <div className="absolute inset-0 flex items-center justify-center z-50">
@@ -415,10 +359,6 @@ function fileRankToPixel(
   const col = flipped ? file - 1 : 9 - file;
   const row = flipped ? 9 - rank : rank - 1;
   return { x: col * cellSize + cellSize / 2, y: row * cellSize + cellSize / 2 };
-}
-
-function rankKanji(rank: number): string {
-  return ["一", "二", "三", "四", "五", "六", "七", "八", "九"][rank - 1] ?? "";
 }
 
 function getLastMoveSquares(

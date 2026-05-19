@@ -1,24 +1,31 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { MoveOrDrop, Color } from "shogiops/types";
-import { ShogiBoard } from "@/components/board";
-import { ArrowTimerMeter } from "@/components/ArrowTimerMeter";
-import { EvalGraph } from "@/components/EvalGraph";
-import { GameControls } from "@/components/GameControls";
+import type { MoveOrDrop, Color, Square, Role, Piece } from "shogiops/types";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useAIAssist } from "@/hooks/useAIAssist";
-import { useBoardSize } from "@/hooks/useBoardSize";
 import { useGameHistory } from "@/hooks/useGameHistory";
 import { useSettings } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
-import { useTimer, formatTime } from "@/hooks/useTimer";
+import { useTimer } from "@/hooks/useTimer";
 import {
   applyMoveToGame,
   usiToMove,
   squareToCoords,
+  coordsToSquare,
+  canPromote,
+  mustPromote,
 } from "@/lib/shogi-game";
 import { getEngine } from "@/lib/engine";
+import { calcLayout, type CanvasLayout } from "@/lib/canvas/layout";
+import { loadPieceImages } from "@/lib/canvas/images";
+import {
+  drawCanvas,
+  createParticles,
+  type AnimState,
+  type RenderState,
+} from "@/lib/canvas/renderer";
+import { hitTest } from "@/lib/canvas/hit-test";
 
 export function GameView({ onBack }: { onBack: () => void }) {
   const {
@@ -40,9 +47,6 @@ export function GameView({ onBack }: { onBack: () => void }) {
   } = useGameHistory();
 
   const { settings, updateSettings, resetSettings } = useSettings();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { cellSize } = useBoardSize(containerRef);
-  const boardPx = cellSize * 9;
   const [playerColor] = useState<Color>("sente");
   const { senteTime, goteTime, reset: resetTimer } = useTimer(
     game.turn,
@@ -54,15 +58,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef(false);
   const aiThinkingRef = useRef(false);
-  const [captureInfo, setCaptureInfo] = useState<{
-    file: number;
-    rank: number;
-  } | null>(null);
-  const [captureTrigger, setCaptureTrigger] = useState(0);
-  const [shaking, setShaking] = useState(false);
 
   const isPlayerTurn = game.turn === playerColor;
   const isInteractive = isLive && isPlayerTurn && !game.isEnd;
+  const flipped = playerColor === "gote";
 
   const {
     arrows,
@@ -77,25 +76,160 @@ export function GameView({ onBack }: { onBack: () => void }) {
     settings.soundEnabled,
   );
 
+  // ── Canvas ──────────────────────────────────────────
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [images, setImages] = useState<Map<string, HTMLImageElement>>(
+    () => new Map(),
+  );
+  const [layout, setLayout] = useState<CanvasLayout>(() => {
+    if (typeof window === "undefined") return calcLayout(400, 700);
+    return calcLayout(
+      window.innerWidth,
+      window.visualViewport?.height ?? window.innerHeight,
+    );
+  });
+
+  const [selected, setSelected] = useState<Square | null>(null);
+  const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
+  const [legalDests, setLegalDests] = useState<Set<number>>(new Set());
+  const [showPromotion, setShowPromotion] = useState<{
+    from: Square;
+    to: Square;
+  } | null>(null);
+  const [, forceRender] = useState(0);
+  const animRef = useRef<AnimState>({
+    particles: [],
+    captureTime: 0,
+    flash: false,
+    shakeX: 0,
+  });
+
+  useEffect(() => {
+    loadPieceImages().then(setImages);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      const vh =
+        window.visualViewport?.height ?? window.innerHeight;
+      setLayout(calcLayout(window.innerWidth, vh));
+    };
+    window.addEventListener("resize", handler);
+    window.visualViewport?.addEventListener("resize", handler);
+    return () => {
+      window.removeEventListener("resize", handler);
+      window.visualViewport?.removeEventListener("resize", handler);
+    };
+  }, []);
+
+  useEffect(() => {
+    setSelected(null);
+    setSelectedDrop(null);
+    setLegalDests(new Set());
+  }, [game.position]);
+
+  const checkSquare = game.isCheck
+    ? findKingSquare(game.position, game.turn)
+    : null;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const state: RenderState = {
+      position: game.position,
+      turn: game.turn,
+      moveCount: game.moveCount,
+      isCheck: game.isCheck,
+      isEnd: game.isEnd,
+      lastMove: game.lastMove,
+      playerColor,
+      flipped,
+      selected,
+      selectedDrop,
+      legalDests,
+      arrows,
+      evalHistory,
+      viewIndex,
+      thinkingElapsed,
+      settings,
+      senteTime,
+      goteTime,
+      message,
+      badMoveAlert,
+      isLive,
+      engineReady,
+      aiThinking,
+      canTakeBack,
+      canStepBack,
+      canStepForward,
+      showPromotion,
+      checkSquare,
+    };
+
+    drawCanvas(ctx, layout, state, images, animRef.current);
+  });
+
+  // ── Capture effects ─────────────────────────────────
   const triggerCapture = useCallback(
     (sq: number) => {
-      const coords = squareToCoords(sq);
-      setCaptureInfo({ file: coords.file, rank: coords.rank });
-      setCaptureTrigger((n) => n + 1);
-      setShaking(true);
-      setTimeout(() => setShaking(false), 200);
+      const { file, rank } = squareToCoords(sq);
+      animRef.current.particles = createParticles(
+        file,
+        rank,
+        flipped,
+        layout.cellSize,
+      );
+      animRef.current.captureTime = performance.now();
+      animRef.current.flash = true;
+      setTimeout(() => {
+        animRef.current.flash = false;
+        forceRender((n) => n + 1);
+      }, 120);
+
+      const start = performance.now();
+      const shake = () => {
+        const elapsed = performance.now() - start;
+        if (elapsed > 200) {
+          animRef.current.shakeX = 0;
+          forceRender((n) => n + 1);
+          return;
+        }
+        animRef.current.shakeX =
+          Math.sin(elapsed * 0.05) * 4 * (1 - elapsed / 200);
+        forceRender((n) => n + 1);
+        requestAnimationFrame(shake);
+      };
+
+      const animateParticles = () => {
+        const elapsed =
+          (performance.now() - animRef.current.captureTime) / 1000;
+        if (elapsed < 0.5) {
+          forceRender((n) => n + 1);
+          requestAnimationFrame(animateParticles);
+        } else {
+          animRef.current.particles = [];
+          forceRender((n) => n + 1);
+        }
+      };
+
+      requestAnimationFrame(shake);
+      requestAnimationFrame(animateParticles);
     },
-    [],
+    [flipped, layout.cellSize],
   );
 
-  const handleMove = useCallback(
+  // ── Move execution ──────────────────────────────────
+  const commitMove = useCallback(
     (move: MoveOrDrop) => {
-      if (!isInteractive) return;
       const newGame = applyMoveToGame(game, move);
       if (!newGame) return;
 
       const isCapt =
-        "from" in move && game.position.board.get(move.to) !== undefined;
+        "from" in move &&
+        game.position.board.get(move.to) !== undefined;
       if (isCapt) {
         playCapture();
         triggerCapture(move.to);
@@ -119,7 +253,6 @@ export function GameView({ onBack }: { onBack: () => void }) {
     },
     [
       game,
-      isInteractive,
       playerColor,
       currentEval,
       pushMove,
@@ -130,8 +263,124 @@ export function GameView({ onBack }: { onBack: () => void }) {
     ],
   );
 
+  const handleSquareClick = useCallback(
+    (file: number, rank: number) => {
+      if (!isInteractive) return;
+      const sq = coordsToSquare(file, rank);
+
+      if (showPromotion) {
+        setShowPromotion(null);
+        return;
+      }
+
+      if (selectedDrop) {
+        const piece: Piece = {
+          role: selectedDrop,
+          color: game.position.turn,
+        };
+        const dests = game.position.dropDests(piece);
+        if (dests.has(sq)) {
+          commitMove({ role: selectedDrop, to: sq });
+        }
+        setSelectedDrop(null);
+        setLegalDests(new Set());
+        return;
+      }
+
+      if (selected !== null) {
+        if (legalDests.has(sq)) {
+          if (
+            canPromote(game.position, selected, sq) &&
+            !mustPromote(game.position, selected, sq)
+          ) {
+            setShowPromotion({ from: selected, to: sq });
+            return;
+          }
+          commitMove({
+            from: selected,
+            to: sq,
+            promotion:
+              mustPromote(game.position, selected, sq) || undefined,
+          });
+          return;
+        }
+        setSelected(null);
+        setLegalDests(new Set());
+      }
+
+      const piece = game.position.board.get(sq);
+      if (piece && piece.color === game.position.turn) {
+        setSelected(sq);
+        const dests = game.position.moveDests(sq);
+        const destSet = new Set<number>();
+        for (const d of dests) destSet.add(d);
+        setLegalDests(destSet);
+      }
+    },
+    [
+      isInteractive,
+      game,
+      selected,
+      selectedDrop,
+      legalDests,
+      showPromotion,
+      commitMove,
+    ],
+  );
+
+  const handleHandClick = useCallback(
+    (role: Role) => {
+      if (!isInteractive) return;
+      setSelected(null);
+      setSelectedDrop(role);
+      const piece: Piece = { role, color: game.position.turn };
+      const dests = game.position.dropDests(piece);
+      const destSet = new Set<number>();
+      for (const d of dests) destSet.add(d);
+      setLegalDests(destSet);
+    },
+    [isInteractive, game],
+  );
+
+  const handlePromotion = useCallback(
+    (promote: boolean) => {
+      if (!showPromotion) return;
+      commitMove({
+        from: showPromotion.from,
+        to: showPromotion.to,
+        promotion: promote || undefined,
+      });
+      setShowPromotion(null);
+    },
+    [showPromotion, commitMove],
+  );
+
+  // ── Reset / TakeBack ────────────────────────────────
+  const handleReset = useCallback(() => {
+    abortRef.current = true;
+    aiThinkingRef.current = false;
+    getEngine().cancelSearch();
+    reset();
+    resetTimer();
+    setMessage(null);
+    setAiThinking(false);
+    setShowPromotion(null);
+  }, [reset, resetTimer]);
+
+  const handleTakeBack = useCallback(() => {
+    abortRef.current = true;
+    aiThinkingRef.current = false;
+    getEngine().cancelSearch();
+    takeBack();
+    setMessage(null);
+    setAiThinking(false);
+    setShowPromotion(null);
+  }, [takeBack]);
+
+  // ── AI move ─────────────────────────────────────────
   useEffect(() => {
-    if (!isLive || game.isEnd || isPlayerTurn || aiThinkingRef.current) return;
+    if (!isLive || game.isEnd || isPlayerTurn || aiThinkingRef.current)
+      return;
 
     aiThinkingRef.current = true;
     setAiThinking(true);
@@ -160,7 +409,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
                 resolve();
               }
             }, 100);
-            setTimeout(() => clearInterval(check), settings.cpuMoveDelay + 50);
+            setTimeout(
+              () => clearInterval(check),
+              settings.cpuMoveDelay + 50,
+            );
           });
         }
         if (abortRef.current) return;
@@ -173,7 +425,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
         if (!newGame) return;
 
         const isCapt =
-          "from" in move && game.position.board.get(move.to) !== undefined;
+          "from" in move &&
+          game.position.board.get(move.to) !== undefined;
         if (isCapt) {
           playCapture();
           triggerCapture(move.to);
@@ -182,7 +435,10 @@ export function GameView({ onBack }: { onBack: () => void }) {
         }
 
         const cpuScore = result.candidates[0]?.score;
-        pushMove(newGame, cpuScore !== undefined ? -cpuScore : null);
+        pushMove(
+          newGame,
+          cpuScore !== undefined ? -cpuScore : null,
+        );
 
         if (newGame.isCheck && !newGame.isEnd) {
           playCheck();
@@ -222,151 +478,111 @@ export function GameView({ onBack }: { onBack: () => void }) {
     triggerCapture,
   ]);
 
-  const handleReset = useCallback(() => {
-    abortRef.current = true;
-    aiThinkingRef.current = false;
-    getEngine().cancelSearch();
-    reset();
-    resetTimer();
-    setMessage(null);
-    setAiThinking(false);
-  }, [reset, resetTimer]);
+  // ── Canvas click ────────────────────────────────────
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
 
-  const handleTakeBack = useCallback(() => {
-    abortRef.current = true;
-    aiThinkingRef.current = false;
-    getEngine().cancelSearch();
-    takeBack();
-    setMessage(null);
-    setAiThinking(false);
-  }, [takeBack]);
+      const hit = hitTest(layout, x, y, {
+        flipped,
+        position: game.position,
+        playerColor,
+        showPromotion,
+        canTakeBack: canTakeBack && isLive,
+        canStepBack,
+        canStepForward,
+        isLive,
+        evalHistory,
+      });
 
-  const checkSquare = game.isCheck
-    ? findKingSquare(game, game.turn)
-    : null;
+      if (!hit) return;
+
+      switch (hit.type) {
+        case "square":
+          handleSquareClick(hit.file, hit.rank);
+          break;
+        case "hand":
+          handleHandClick(hit.role);
+          break;
+        case "promotion":
+          handlePromotion(hit.promote);
+          break;
+        case "evalGraph":
+          goTo(hit.index);
+          break;
+        case "button":
+          switch (hit.action) {
+            case "takeback":
+              handleTakeBack();
+              break;
+            case "stepBack":
+              stepBack();
+              break;
+            case "stepForward":
+              stepForward();
+              break;
+            case "goToLatest":
+              goToLatest();
+              break;
+            case "resume":
+              resumeFromCurrent();
+              break;
+            case "reset":
+              handleReset();
+              break;
+            case "settings":
+              setShowSettings(true);
+              break;
+            case "back":
+              onBack();
+              break;
+          }
+          break;
+      }
+    },
+    [
+      layout,
+      flipped,
+      game.position,
+      playerColor,
+      showPromotion,
+      canTakeBack,
+      canStepBack,
+      canStepForward,
+      isLive,
+      evalHistory,
+      handleSquareClick,
+      handleHandClick,
+      handlePromotion,
+      goTo,
+      handleTakeBack,
+      stepBack,
+      stepForward,
+      goToLatest,
+      resumeFromCurrent,
+      handleReset,
+      onBack,
+    ],
+  );
 
   return (
-    <div
-      ref={containerRef}
-      className="h-[100dvh] w-full bg-zinc-900 text-white flex flex-col items-center justify-center overflow-hidden select-none"
-    >
-      <div className={`flex flex-col items-center ${shaking ? "animate-shake" : ""}`} style={{ width: boardPx }}>
-        <ShogiBoard
-          position={game.position}
-          orientation={playerColor}
-          arrows={arrows}
-          onMove={handleMove}
-          lastMove={game.lastMove}
-          interactive={isInteractive}
-          checkSquare={checkSquare ?? undefined}
-          moveCount={game.moveCount}
-          captureSquare={captureInfo}
-          captureTrigger={captureTrigger}
-          cellSize={cellSize}
-          topPlayerName="CPU"
-          bottomPlayerName="あなた"
-          topTimer={formatTime(goteTime)}
-          bottomTimer={formatTime(senteTime)}
-        />
-
-        <GameControls
-          canTakeBack={canTakeBack && isLive}
-          canStepBack={canStepBack}
-          canStepForward={canStepForward}
-          isLive={isLive}
-          onTakeBack={handleTakeBack}
-          onStepBack={stepBack}
-          onStepForward={stepForward}
-          onGoToLatest={goToLatest}
-          onResume={resumeFromCurrent}
-        />
-
-        <EvalGraph
-          evalHistory={evalHistory}
-          currentIndex={viewIndex}
-          onClickMove={goTo}
-          width={boardPx}
-        />
-
-        <ArrowTimerMeter
-          elapsed={thinkingElapsed}
-          settings={settings}
-          active={isPlayerTurn && isLive && engineReady && !game.isEnd}
-          width={boardPx}
-        />
-
-        <div className="flex flex-col items-center gap-1 mt-1">
-          <div className="h-7 flex items-center justify-center">
-            {badMoveAlert && isLive ? (
-              <div
-                className={`text-sm font-bold px-3 py-1 rounded-lg animate-bounce ${
-                  badMoveAlert.severity === "blunder"
-                    ? "bg-red-700/40 text-red-200"
-                    : badMoveAlert.severity === "mistake"
-                      ? "bg-orange-600/40 text-orange-200"
-                      : "bg-yellow-600/30 text-yellow-200"
-                }`}
-              >
-                {badMoveAlert.message}
-              </div>
-            ) : message ? (
-              <div
-                className={`text-sm font-bold px-3 py-1 rounded-lg ${
-                  message.includes("勝ち")
-                    ? "bg-yellow-600/30 text-yellow-300"
-                    : message.includes("王手")
-                      ? "bg-red-600/30 text-red-300"
-                      : "bg-gray-600/30 text-gray-300"
-                }`}
-              >
-                {message}
-              </div>
-            ) : !isLive ? (
-              <div className="text-amber-400/80 text-xs">
-                棋譜閲覧中（{viewIndex}手目）
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-zinc-400 h-4">
-            <span>{game.turn === "sente" ? "先手" : "後手"}の番</span>
-            <span>{game.moveCount}手目</span>
-            {!engineReady && (
-              <span className="text-amber-400 animate-pulse">
-                AI読込中...
-              </span>
-            )}
-            {aiThinking && engineReady && (
-              <span className="text-sky-400 animate-pulse">CPU思考中...</span>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleReset}
-              className="px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
-              type="button"
-            >
-              新しい対局
-            </button>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-3 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors"
-              type="button"
-            >
-              設定
-            </button>
-            <button
-              onClick={onBack}
-              className="px-3 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400"
-              type="button"
-            >
-              トップへ
-            </button>
-          </div>
-        </div>
-      </div>
-
+    <>
+      <canvas
+        ref={canvasRef}
+        width={layout.canvasW * layout.dpr}
+        height={layout.canvasH * layout.dpr}
+        style={{
+          width: layout.canvasW,
+          height: layout.canvasH,
+          touchAction: "manipulation",
+          display: "block",
+        }}
+        onClick={handleCanvasClick}
+      />
       {showSettings && (
         <SettingsPanel
           settings={settings}
@@ -375,14 +591,14 @@ export function GameView({ onBack }: { onBack: () => void }) {
           onClose={() => setShowSettings(false)}
         />
       )}
-    </div>
+    </>
   );
 }
 
 function findKingSquare(
-  game: { position: { kingsOf: (c: Color) => Iterable<number> } },
+  position: { kingsOf: (c: Color) => Iterable<number> },
   color: Color,
-): number | null {
-  for (const sq of game.position.kingsOf(color)) return sq;
+): Square | null {
+  for (const sq of position.kingsOf(color)) return sq as Square;
   return null;
 }

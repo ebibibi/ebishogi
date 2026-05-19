@@ -6,7 +6,7 @@ import type { GameState } from "@/lib/shogi-game";
 import { squareToCoords } from "@/lib/shogi-game";
 import { getEngine } from "@/lib/engine";
 import type { CandidateMove } from "@/lib/engine";
-import type { ArrowData } from "@/components/board";
+import type { ArrowData } from "@/lib/canvas/layout";
 import type { GameSettings } from "@/hooks/useSettings";
 
 export type BadMoveAlert = {

@@ -56,23 +56,21 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
         <section className="mb-5">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">CPU</h3>
           <div className="mb-3">
-            <span className="text-sm text-zinc-400 mb-1.5 block">強さ</span>
-            <div className="grid grid-cols-4 gap-1">
-              {CPU_LEVELS.map((level, i) => (
-                <button
-                  key={level.name}
-                  onClick={() => onUpdate({ cpuLevel: i })}
-                  className={`py-1.5 text-xs rounded-lg transition-colors ${
-                    settings.cpuLevel === i
-                      ? "bg-amber-600 text-white font-bold"
-                      : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
-                  }`}
-                  type="button"
-                >
-                  {level.name}
-                </button>
-              ))}
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm text-zinc-400">強さ</span>
+              <span className="text-sm font-bold text-amber-400">
+                {CPU_LEVELS[settings.cpuLevel]?.name}
+              </span>
             </div>
+            <input
+              type="range"
+              min={0}
+              max={CPU_LEVELS.length - 1}
+              step={1}
+              value={settings.cpuLevel}
+              onChange={(e) => onUpdate({ cpuLevel: Number(e.target.value) })}
+              className="w-full accent-amber-500 h-1.5"
+            />
             <p className="text-xs text-zinc-500 mt-1">
               {CPU_LEVELS[settings.cpuLevel]?.description}
             </p>

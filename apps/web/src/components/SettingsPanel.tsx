@@ -1,6 +1,6 @@
 "use client";
 
-import type { GameSettings } from "@/hooks/useSettings";
+import { CPU_LEVELS, type GameSettings } from "@/hooks/useSettings";
 
 type Props = {
   settings: GameSettings;
@@ -55,6 +55,28 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
 
         <section className="mb-5">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">CPU</h3>
+          <div className="mb-3">
+            <span className="text-sm text-zinc-400 mb-1.5 block">強さ</span>
+            <div className="grid grid-cols-5 gap-1">
+              {CPU_LEVELS.map((level, i) => (
+                <button
+                  key={level.name}
+                  onClick={() => onUpdate({ cpuLevel: i })}
+                  className={`py-1.5 text-xs rounded-lg transition-colors ${
+                    settings.cpuLevel === i
+                      ? "bg-amber-600 text-white font-bold"
+                      : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                  }`}
+                  type="button"
+                >
+                  {level.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-zinc-500 mt-1">
+              {CPU_LEVELS[settings.cpuLevel]?.description}
+            </p>
+          </div>
           <Slider
             label="着手遅延"
             value={settings.cpuMoveDelay}

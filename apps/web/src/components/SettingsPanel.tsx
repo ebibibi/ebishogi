@@ -57,7 +57,7 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">CPU</h3>
           <div className="mb-3">
             <span className="text-sm text-zinc-400 mb-1.5 block">強さ</span>
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-4 gap-1">
               {CPU_LEVELS.map((level, i) => (
                 <button
                   key={level.name}

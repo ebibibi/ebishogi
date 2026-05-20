@@ -5,7 +5,7 @@ import type { MoveOrDrop, Color, Square, Role, Piece } from "shogiops/types";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useAIAssist } from "@/hooks/useAIAssist";
 import { useGameHistory } from "@/hooks/useGameHistory";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, CPU_LEVELS } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
 import { useTimer } from "@/hooks/useTimer";
 import {
@@ -450,10 +450,15 @@ export function GameView({ onBack }: { onBack: () => void }) {
     const run = async () => {
       try {
         const engine = getEngine();
-        const result = await engine.search(game.sfen, {
-          multiPV: 1,
-          timeMs: 500,
-        });
+        const level =
+          CPU_LEVELS[settings.cpuLevel] ??
+          CPU_LEVELS[CPU_LEVELS.length - 1];
+        const result = await engine.search(
+          game.sfen,
+          level.depth > 0
+            ? { multiPV: level.candidates, depth: level.depth }
+            : { multiPV: 1, timeMs: 500 },
+        );
         if (abortRef.current) return;
 
         if (result.candidates.length > 0) {
@@ -478,7 +483,15 @@ export function GameView({ onBack }: { onBack: () => void }) {
         }
         if (abortRef.current) return;
 
-        const usi = result.bestmove;
+        let chosenIdx = 0;
+        if (level.candidates > 1 && result.candidates.length > 1) {
+          chosenIdx = Math.floor(
+            Math.random() *
+              Math.min(level.candidates, result.candidates.length),
+          );
+        }
+        const chosen = result.candidates[chosenIdx];
+        const usi = chosen?.usi ?? result.bestmove;
         if (!usi) return;
         const move = usiToMove(usi);
         if (!move) return;
@@ -496,7 +509,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
           triggerMoveRipple(move.to);
         }
 
-        const cpuScore = result.candidates[0]?.score;
+        const cpuScore = chosen?.score;
         pushMove(
           newGame,
           cpuScore !== undefined ? -cpuScore : null,
@@ -532,6 +545,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     isLive,
     playerColor,
     settings.cpuMoveDelay,
+    settings.cpuLevel,
     evaluatePlayerMove,
     pushMove,
     playMove,

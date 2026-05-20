@@ -2,12 +2,28 @@
 
 import { useState } from "react";
 import { GameView } from "@/components/GameView";
+import { LevelSelectScreen } from "@/components/LevelSelectScreen";
+import { useSettings } from "@/hooks/useSettings";
+
+type Screen = "home" | "selectLevel" | "playing";
 
 export default function Home() {
-  const [started, setStarted] = useState(false);
+  const [screen, setScreen] = useState<Screen>("home");
+  const { settings, updateSettings } = useSettings();
 
-  if (started) {
-    return <GameView onBack={() => setStarted(false)} />;
+  if (screen === "playing") {
+    return <GameView onBack={() => setScreen("home")} />;
+  }
+
+  if (screen === "selectLevel") {
+    return (
+      <LevelSelectScreen
+        cpuLevel={settings.cpuLevel}
+        onSelect={(level) => updateSettings({ cpuLevel: level })}
+        onStart={() => setScreen("playing")}
+        onBack={() => setScreen("home")}
+      />
+    );
   }
 
   return (
@@ -70,7 +86,7 @@ export default function Home() {
         </div>
 
         <button
-          onClick={() => setStarted(true)}
+          onClick={() => setScreen("selectLevel")}
           className="w-full py-4 text-lg font-bold bg-amber-600 hover:bg-amber-500 active:bg-amber-700 rounded-xl transition-colors"
           type="button"
         >

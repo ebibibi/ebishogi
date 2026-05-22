@@ -456,8 +456,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
         const result = await engine.search(
           game.sfen,
           level.depth > 0
-            ? { multiPV: level.candidates, depth: level.depth, skillLevel: level.skillLevel }
-            : { multiPV: 1, timeMs: 500, skillLevel: level.skillLevel },
+            ? { multiPV: level.candidates, depth: level.depth }
+            : { multiPV: 1, timeMs: 500 },
         );
         if (abortRef.current) return;
 

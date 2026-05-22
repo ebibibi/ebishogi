@@ -16,7 +16,6 @@ type SearchOptions = {
   readonly multiPV?: number;
   readonly timeMs?: number;
   readonly depth?: number;
-  readonly skillLevel?: number;
   readonly onInfo?: (candidates: readonly CandidateMove[]) => void;
 };
 
@@ -210,9 +209,6 @@ class ShogiEngine {
     };
 
     this.send(`setoption name MultiPV value ${multiPV}`);
-    if (options.skillLevel !== undefined) {
-      this.send(`setoption name SkillLevel value ${options.skillLevel}`);
-    }
     this.send(`position sfen ${sfen}`);
 
     if (options.depth) {

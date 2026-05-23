@@ -230,12 +230,13 @@ export function useAIAssist(
   }, [active, engineReady, game.isEnd]);
 
   const arrows = useMemo(() => {
+    if (!settings.showHints) return [];
     if (visibleRanks.size === 0) return [];
     return candidates
       .filter((c) => visibleRanks.has(c.rank))
       .map((c) => candidateToArrow(c, c.rank - 1, game.position))
       .filter((a): a is ArrowData => a !== null);
-  }, [candidates, visibleRanks, game.position]);
+  }, [candidates, visibleRanks, game.position, settings.showHints]);
 
   useEffect(() => {
     if (!badMoveAlert) return;

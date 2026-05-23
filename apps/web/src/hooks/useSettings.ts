@@ -34,6 +34,7 @@ export type GameSettings = {
   cpuMoveDelay: number;
   cpuLevel: number;
   soundEnabled: boolean;
+  showHints: boolean;
 };
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   cpuMoveDelay: 1500,
   cpuLevel: 14,
   soundEnabled: true,
+  showHints: true,
 };
 
 const STORAGE_KEY = "ebishogi-settings";

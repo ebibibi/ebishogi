@@ -1,9 +1,17 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
+
+const SOUND_URLS = {
+  move: "/sounds/move.mp3",
+  capture: "/sounds/capture.mp3",
+} as const;
+
+type SoundBuffers = Record<keyof typeof SOUND_URLS, AudioBuffer | null>;
 
 export function useSound(enabled: boolean) {
   const ctxRef = useRef<AudioContext | null>(null);
+  const buffersRef = useRef<SoundBuffers>({ move: null, capture: null });
 
   const getCtx = useCallback(() => {
     if (!ctxRef.current) ctxRef.current = new AudioContext();
@@ -11,97 +19,37 @@ export function useSound(enabled: boolean) {
     return ctxRef.current;
   }, []);
 
-  const playMove = useCallback(() => {
+  useEffect(() => {
     if (!enabled) return;
-    playWoodSlam(getCtx(), false);
-  }, [enabled, getCtx]);
 
-  const playCapture = useCallback(() => {
-    if (!enabled) return;
-    playWoodSlam(getCtx(), true);
-    setTimeout(() => playCrash(getCtx()), 30);
-  }, [enabled, getCtx]);
-
-  const playCheck = useCallback(() => {
-    if (!enabled) return;
     const ctx = getCtx();
-    playDramaticChime(ctx);
+    for (const [key, url] of Object.entries(SOUND_URLS)) {
+      fetch(url)
+        .then((res) => res.arrayBuffer())
+        .then((buf) => ctx.decodeAudioData(buf))
+        .then((decoded) => {
+          buffersRef.current[key as keyof typeof SOUND_URLS] = decoded;
+        });
+    }
   }, [enabled, getCtx]);
+
+  const playBuffer = useCallback(
+    (key: keyof typeof SOUND_URLS) => {
+      if (!enabled) return;
+      const ctx = getCtx();
+      const buffer = buffersRef.current[key];
+      if (!buffer) return;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start();
+    },
+    [enabled, getCtx],
+  );
+
+  const playMove = useCallback(() => playBuffer("move"), [playBuffer]);
+  const playCapture = useCallback(() => playBuffer("capture"), [playBuffer]);
+  const playCheck = useCallback(() => playBuffer("capture"), [playBuffer]);
 
   return { playMove, playCapture, playCheck };
-}
-
-function playWoodSlam(ctx: AudioContext, heavy: boolean) {
-  const duration = heavy ? 0.15 : 0.08;
-  const len = Math.ceil(ctx.sampleRate * duration);
-  const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-
-  const freq = heavy ? 180 : 320;
-  for (let i = 0; i < len; i++) {
-    const t = i / ctx.sampleRate;
-    const noise = Math.random() * 2 - 1;
-    const tone = Math.sin(2 * Math.PI * freq * t);
-    const sub = Math.sin(2 * Math.PI * 80 * t) * 0.3;
-    const envelope = Math.exp(-t * (heavy ? 25 : 45));
-    data[i] = (noise * 0.5 + tone * 0.35 + sub) * envelope;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = heavy ? 500 : 800;
-  filter.Q.value = 1.2;
-
-  const gain = ctx.createGain();
-  gain.gain.value = heavy ? 0.55 : 0.35;
-
-  source.connect(filter).connect(gain).connect(ctx.destination);
-  source.start(ctx.currentTime);
-}
-
-function playCrash(ctx: AudioContext) {
-  const duration = 0.25;
-  const len = Math.ceil(ctx.sampleRate * duration);
-  const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-
-  for (let i = 0; i < len; i++) {
-    const t = i / ctx.sampleRate;
-    const noise = Math.random() * 2 - 1;
-    const crackle = Math.sin(2 * Math.PI * 1200 * t) * Math.exp(-t * 60);
-    const envelope = Math.exp(-t * 12);
-    data[i] = (noise * 0.7 + crackle * 0.3) * envelope;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = "highpass";
-  filter.frequency.value = 400;
-
-  const gain = ctx.createGain();
-  gain.gain.value = 0.2;
-
-  source.connect(filter).connect(gain).connect(ctx.destination);
-  source.start(ctx.currentTime);
-}
-
-function playDramaticChime(ctx: AudioContext) {
-  const notes = [880, 1100, 1320];
-  notes.forEach((freq, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.value = freq;
-    osc.type = "sine";
-    const start = ctx.currentTime + i * 0.08;
-    gain.gain.setValueAtTime(0.2, start);
-    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.15);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + 0.15);
-  });
 }

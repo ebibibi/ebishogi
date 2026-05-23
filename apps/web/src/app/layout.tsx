@@ -52,6 +52,12 @@ export default function RootLayout({
         <Script id="gtag-init" strategy="afterInteractive">
           {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-S7Q6G0HRCV');`}
         </Script>
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9817070969559871"
+          crossOrigin="anonymous"
+          strategy="lazyOnload"
+        />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

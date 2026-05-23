@@ -124,3 +124,68 @@ export function getHandPieces(pos: Shogi, color: Color): Map<Role, number> {
 export function usiToMove(usi: string): MoveOrDrop | undefined {
   return parseUsi(usi);
 }
+
+export type RepetitionResult =
+  | { readonly type: "none" }
+  | { readonly type: "repetition" }
+  | { readonly type: "perpetualCheck"; readonly loser: Color };
+
+function positionKey(sfen: string): string {
+  return sfen.split(" ").slice(0, 3).join(" ");
+}
+
+export function detectRepetition(
+  entries: ReadonlyArray<{ readonly sfen: string; readonly isCheck: boolean }>,
+): RepetitionResult {
+  if (entries.length < 2) return { type: "none" };
+
+  const latestKey = positionKey(entries[entries.length - 1].sfen);
+
+  const indices: number[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    if (positionKey(entries[i].sfen) === latestKey) {
+      indices.push(i);
+    }
+  }
+
+  if (indices.length < 4) return { type: "none" };
+
+  const firstIdx = indices[0];
+  const lastIdx = indices[indices.length - 1];
+
+  let senteAlwaysChecks = true;
+  let goteAlwaysChecks = true;
+  let senteMoveCount = 0;
+  let goteMoveCount = 0;
+
+  for (let i = firstIdx + 1; i <= lastIdx; i++) {
+    const turnInSfen = entries[i].sfen.split(" ")[1];
+    const mover: Color = turnInSfen === "b" ? "gote" : "sente";
+    const resultedInCheck = entries[i].isCheck;
+
+    if (mover === "sente") {
+      senteMoveCount++;
+      if (!resultedInCheck) senteAlwaysChecks = false;
+    } else {
+      goteMoveCount++;
+      if (!resultedInCheck) goteAlwaysChecks = false;
+    }
+  }
+
+  if (
+    senteMoveCount > 0 &&
+    senteAlwaysChecks &&
+    !(goteMoveCount > 0 && goteAlwaysChecks)
+  ) {
+    return { type: "perpetualCheck", loser: "sente" };
+  }
+  if (
+    goteMoveCount > 0 &&
+    goteAlwaysChecks &&
+    !(senteMoveCount > 0 && senteAlwaysChecks)
+  ) {
+    return { type: "perpetualCheck", loser: "gote" };
+  }
+
+  return { type: "repetition" };
+}

@@ -80,9 +80,14 @@ export function coordsToSquare(file: number, rank: number): Square {
   return parseCoordinates(file - 1, rank - 1) as Square;
 }
 
+const PROMOTABLE_ROLES: ReadonlySet<Role> = new Set<Role>([
+  "pawn", "lance", "knight", "silver", "bishop", "rook",
+]);
+
 export function canPromote(pos: Shogi, from: Square, to: Square): boolean {
   const piece = pos.board.get(from);
   if (!piece) return false;
+  if (!PROMOTABLE_ROLES.has(piece.role)) return false;
   const fromRank = squareRank(from);
   const toRank = squareRank(to);
   if (piece.color === "sente") {

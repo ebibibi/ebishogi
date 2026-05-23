@@ -29,6 +29,7 @@ export type ArrowData = {
   color: string;
   opacity: number;
   width: number;
+  dropRole?: Role;
 };
 
 export type ButtonDef = {

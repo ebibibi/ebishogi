@@ -468,6 +468,17 @@ function drawArrows(
   layout: CanvasLayout,
   state: RenderState,
 ) {
+  const bottomColor: Color = state.flipped ? "gote" : "sente";
+  const playerIsBottom = state.playerColor === bottomColor;
+  const handRect = playerIsBottom ? layout.bottomHand : layout.topHand;
+  const handPieces = getHandPieces(state.position, state.playerColor);
+  const slots = getHandSlotPositions(
+    handRect,
+    handPieces,
+    layout.handPieceSize,
+    playerIsBottom,
+  );
+
   for (const a of state.arrows) {
     const to = fileRankToPixel(
       a.toFile,
@@ -485,6 +496,17 @@ function drawArrows(
         layout.cellSize,
       );
       drawArrow(ctx, from, to, a.color, a.opacity, a.width);
+    } else if (a.dropRole) {
+      const slot = slots.find((s) => s.role === a.dropRole);
+      if (slot) {
+        const from = {
+          x: slot.x + slot.w / 2,
+          y: handRect.y + handRect.h / 2,
+        };
+        drawArrow(ctx, from, to, a.color, a.opacity, a.width);
+      } else {
+        drawDropMarker(ctx, to, a.color, a.opacity, a.width, layout.cellSize);
+      }
     } else {
       drawDropMarker(ctx, to, a.color, a.opacity, a.width, layout.cellSize);
     }

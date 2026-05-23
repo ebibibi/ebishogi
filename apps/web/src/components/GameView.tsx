@@ -105,6 +105,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     moveRipple: null,
     cpuImpact: null,
     alertAnim: null,
+    gameEndAnim: null,
   });
 
   useEffect(() => {
@@ -159,6 +160,39 @@ export function GameView({ onBack }: { onBack: () => void }) {
       cancelled = true;
     };
   }, [badMoveAlert]);
+
+  useEffect(() => {
+    if (!game.isEnd || !message) {
+      animRef.current.gameEndAnim = null;
+      return;
+    }
+    if (animRef.current.gameEndAnim) return;
+    const kind = message.includes("あなたの勝ち")
+      ? ("win" as const)
+      : message.includes("CPU")
+        ? ("lose" as const)
+        : ("draw" as const);
+    animRef.current.gameEndAnim = {
+      text: message,
+      kind,
+      startTime: performance.now(),
+    };
+    let cancelled = false;
+    const animate = () => {
+      if (cancelled) return;
+      const elapsed =
+        (performance.now() - (animRef.current.gameEndAnim?.startTime ?? 0)) /
+        1000;
+      if (elapsed < 0.5) {
+        forceRender((n) => n + 1);
+        requestAnimationFrame(animate);
+      }
+    };
+    requestAnimationFrame(animate);
+    return () => {
+      cancelled = true;
+    };
+  }, [game.isEnd, message]);
 
   const checkSquare = game.isCheck
     ? findKingSquare(game.position, game.turn)

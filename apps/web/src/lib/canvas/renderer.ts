@@ -28,6 +28,11 @@ export type AnimState = {
   moveRipple: { cx: number; cy: number; startTime: number } | null;
   cpuImpact: { cx: number; cy: number; startTime: number } | null;
   alertAnim: { text: string; severity: string; startTime: number } | null;
+  gameEndAnim: {
+    text: string;
+    kind: "win" | "lose" | "draw";
+    startTime: number;
+  } | null;
 };
 
 export type RenderState = {
@@ -139,6 +144,7 @@ export function drawCanvas(
 
   if (state.showPromotion) drawPromotionDialog(ctx, layout);
   drawBadMoveOverlay(ctx, layout, anim);
+  drawGameEndOverlay(ctx, layout, anim);
 
   ctx.restore();
 }
@@ -801,18 +807,12 @@ function drawInfo(
   const cx = infoArea.x + infoArea.w / 2;
   let y = infoArea.y + 2;
 
-  if (state.message) {
+  if (state.message && !state.isEnd) {
     const m = state.message;
-    const bg = m.includes("勝ち")
-      ? "rgba(202,138,4,0.3)"
-      : m.includes("王手")
-        ? "rgba(220,38,38,0.3)"
-        : "rgba(75,85,99,0.3)";
-    const fg = m.includes("勝ち")
-      ? "#fde047"
-      : m.includes("王手")
-        ? "#fca5a5"
-        : "#d1d5db";
+    const bg = m.includes("王手")
+      ? "rgba(220,38,38,0.3)"
+      : "rgba(75,85,99,0.3)";
+    const fg = m.includes("王手") ? "#fca5a5" : "#d1d5db";
     drawPill(ctx, cx, y, m, bg, fg, fs);
   } else if (!state.isLive) {
     ctx.fillStyle = "rgba(251,191,36,0.8)";
@@ -1090,6 +1090,88 @@ function drawBadMoveOverlay(
   ctx.shadowColor = "rgba(0,0,0,0.5)";
   ctx.shadowBlur = 6;
   ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+// ── Game End Overlay ─────────────────────────────────
+
+function drawGameEndOverlay(
+  ctx: CanvasRenderingContext2D,
+  layout: CanvasLayout,
+  anim: AnimState,
+) {
+  if (!anim.gameEndAnim) return;
+  const elapsed = (performance.now() - anim.gameEndAnim.startTime) / 1000;
+  const { text, kind } = anim.gameEndAnim;
+
+  const fadeIn = Math.min(elapsed / 0.4, 1);
+  const bgAlpha = 0.5 * fadeIn;
+
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`;
+  ctx.fillRect(0, 0, layout.canvasW, layout.canvasH);
+
+  let scale = 1;
+  if (elapsed < 0.15) {
+    scale = 2.0 - 1.0 * (elapsed / 0.15);
+  } else if (elapsed < 0.3) {
+    scale = 1 + 0.1 * Math.sin(((elapsed - 0.15) / 0.15) * Math.PI);
+  }
+
+  const cx = layout.canvasW / 2;
+  const cy = layout.board.y + layout.board.h * 0.45;
+  const fontSize = Math.max(40, Math.floor(layout.cellSize * 0.9));
+
+  const styles = {
+    win: {
+      bg: "rgba(161,98,7,0.92)",
+      fg: "#fef08a",
+      outline: "#facc15",
+      glow: "rgba(250,204,21,0.6)",
+    },
+    lose: {
+      bg: "rgba(127,29,29,0.88)",
+      fg: "#fecaca",
+      outline: "#f87171",
+      glow: "rgba(248,113,113,0.4)",
+    },
+    draw: {
+      bg: "rgba(55,65,81,0.88)",
+      fg: "#e5e7eb",
+      outline: "#9ca3af",
+      glow: "rgba(156,163,175,0.3)",
+    },
+  };
+  const s = styles[kind];
+
+  ctx.globalAlpha = fadeIn;
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  const tw = ctx.measureText(text).width;
+  const pw = tw + 60;
+  const ph = fontSize + 40;
+
+  ctx.shadowColor = s.glow;
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = s.bg;
+  rr(ctx, -pw / 2, -ph / 2, pw, ph, 20);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = s.outline;
+  ctx.lineWidth = 3;
+  rr(ctx, -pw / 2, -ph / 2, pw, ph, 20);
+  ctx.stroke();
+
+  ctx.fillStyle = s.fg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = s.glow;
+  ctx.shadowBlur = 12;
+  ctx.fillText(text, 0, 0);
+
   ctx.restore();
 }
 

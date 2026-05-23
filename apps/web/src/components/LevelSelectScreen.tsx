@@ -1,6 +1,7 @@
 "use client";
 
 import { CPU_LEVELS } from "@/hooks/useSettings";
+import { AdBanner } from "@/components/AdBanner";
 
 type Props = {
   cpuLevel: number;
@@ -60,6 +61,10 @@ export function LevelSelectScreen({
         >
           戻る
         </button>
+
+        <div className="w-full mt-4">
+          <AdBanner />
+        </div>
       </div>
     </div>
   );

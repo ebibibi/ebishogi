@@ -41,7 +41,9 @@ export function useSound(enabled: boolean) {
       if (!buffer) return;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
-      source.connect(ctx.destination);
+      const gain = ctx.createGain();
+      gain.gain.value = 0.3;
+      source.connect(gain).connect(ctx.destination);
       source.start();
     },
     [enabled, getCtx],

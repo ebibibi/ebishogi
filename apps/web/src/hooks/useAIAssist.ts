@@ -53,6 +53,7 @@ function candidateToArrow(
   return {
     toFile: to.file,
     toRank: to.rank,
+    dropRole: move.role,
     ...style,
   };
 }

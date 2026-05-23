@@ -528,8 +528,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
         );
         if (abortRef.current) return;
 
-        if (result.candidates.length > 0) {
-          evaluatePlayerMove(result.candidates[0].score);
+        if (result.candidates.length > 0 && game.lastMove) {
+          evaluatePlayerMove(game.lastMove, result.candidates[0].score);
         }
 
         if (settings.cpuMoveDelay > 0) {

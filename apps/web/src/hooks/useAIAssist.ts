@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { parseUsi, squareRank } from "shogiops/util";
-import type { Role } from "shogiops/types";
+import { parseUsi, squareRank, makeUsi } from "shogiops/util";
+import type { MoveOrDrop, Role } from "shogiops/types";
 import type { Shogi } from "shogiops/variant/shogi";
 import type { GameState } from "@/lib/shogi-game";
 import { squareToCoords } from "@/lib/shogi-game";
@@ -21,7 +21,7 @@ type AIAssistResult = {
   badMoveAlert: BadMoveAlert | null;
   engineReady: boolean;
   currentEval: number | null;
-  evaluatePlayerMove: (cpuScore: number) => void;
+  evaluatePlayerMove: (playerMove: MoveOrDrop, cpuScore: number) => void;
   thinkingElapsed: number;
 };
 
@@ -94,6 +94,7 @@ export function useAIAssist(
   const [currentEval, setCurrentEval] = useState<number | null>(null);
   const [thinkingElapsed, setThinkingElapsed] = useState(0);
   const prevEvalRef = useRef<number | null>(null);
+  const prevCandidatesRef = useRef<readonly CandidateMove[]>([]);
   const thinkingStartRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -135,6 +136,7 @@ export function useAIAssist(
         setCandidates(result.candidates);
         if (result.candidates.length > 0) {
           prevEvalRef.current = result.candidates[0].score;
+          prevCandidatesRef.current = result.candidates;
           setCurrentEval(result.candidates[0].score);
         }
       })
@@ -205,8 +207,12 @@ export function useAIAssist(
   }, [badMoveAlert]);
 
   const evaluatePlayerMove = useCallback(
-    (cpuScore: number) => {
-      const playerScoreAfter = -cpuScore;
+    (playerMove: MoveOrDrop, cpuScore: number) => {
+      const playerUsi = makeUsi(playerMove);
+      const matched = prevCandidatesRef.current.find(
+        (c) => c.usi === playerUsi,
+      );
+      const playerScoreAfter = matched ? matched.score : -cpuScore;
       setCurrentEval(playerScoreAfter);
 
       if (game.moveCount <= 1) {

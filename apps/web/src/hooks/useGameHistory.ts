@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { createGame, type GameState } from "@/lib/shogi-game";
+import {
+  createGame,
+  detectRepetition,
+  type GameState,
+  type RepetitionResult,
+} from "@/lib/shogi-game";
 
 export type HistoryEntry = {
   state: GameState;
@@ -96,6 +101,17 @@ export function useGameHistory(initialSfen?: string) {
     [hist.entries],
   );
 
+  const repetition = useMemo<RepetitionResult>(
+    () =>
+      detectRepetition(
+        hist.entries.map((e) => ({
+          sfen: e.state.sfen,
+          isCheck: e.state.isCheck,
+        })),
+      ),
+    [hist.entries],
+  );
+
   return {
     game: current.state,
     entries: hist.entries,
@@ -113,5 +129,6 @@ export function useGameHistory(initialSfen?: string) {
     resumeFromCurrent,
     reset,
     evalHistory,
+    repetition,
   };
 }

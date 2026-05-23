@@ -11,6 +11,7 @@ import { useTimer } from "@/hooks/useTimer";
 import { makeUsi } from "shogiops/util";
 import {
   applyMoveToGame,
+  detectRepetition,
   usiToMove,
   squareToCoords,
   coordsToSquare,
@@ -41,6 +42,7 @@ export function GameView({
 }) {
   const {
     game,
+    entries,
     viewIndex,
     isLive,
     canTakeBack,
@@ -55,6 +57,7 @@ export function GameView({
     resumeFromCurrent,
     reset,
     evalHistory,
+    repetition,
   } = useGameHistory(initialSfen);
 
   // 最新の tsume コールバックを ref で保持し、useEffect/useCallback の依存から外す
@@ -76,7 +79,8 @@ export function GameView({
   const lastPlayerMoveUsiRef = useRef<string | null>(null);
 
   const isPlayerTurn = game.turn === playerColor;
-  const isInteractive = isLive && isPlayerTurn && !game.isEnd;
+  const isGameEnd = game.isEnd || repetition.type !== "none";
+  const isInteractive = isLive && isPlayerTurn && !isGameEnd;
   const flipped = playerColor === "gote";
   const isTsume = !!tsume;
 
@@ -210,11 +214,11 @@ export function GameView({
   }, [moveEvaluation]);
 
   useEffect(() => {
-    if (!game.isEnd || !message) {
+    if (!isGameEnd || !message) {
       animRef.current.gameEndAnim = null;
       return;
     }
-    if (animRef.current.gameEndAnim) return;
+    if (animRef.current.gameEndAnim?.text === message) return;
     const kind =
       message.includes("あなたの勝ち") || message.includes("正解")
         ? ("win" as const)
@@ -224,7 +228,7 @@ export function GameView({
     animRef.current.gameEndAnim = {
       text: message,
       kind,
-      startTime: performance.now(),
+      startTime: animRef.current.gameEndAnim?.startTime ?? performance.now(),
     };
     let cancelled = false;
     const animate = () => {
@@ -241,7 +245,7 @@ export function GameView({
     return () => {
       cancelled = true;
     };
-  }, [game.isEnd, message]);
+  }, [isGameEnd, message]);
 
   const checkSquare = game.isCheck
     ? findKingSquare(game.position, game.turn)
@@ -258,7 +262,7 @@ export function GameView({
       turn: game.turn,
       moveCount: game.moveCount,
       isCheck: game.isCheck,
-      isEnd: game.isEnd,
+      isEnd: isGameEnd,
       lastMove: game.lastMove,
       playerColor,
       flipped,
@@ -451,8 +455,30 @@ export function GameView({
       }
 
       pushMove(newGame, currentEval);
-      setMessage(null);
 
+      const histForCheck = [
+        ...entries.map((e) => ({
+          sfen: e.state.sfen,
+          isCheck: e.state.isCheck,
+        })),
+        { sfen: newGame.sfen, isCheck: newGame.isCheck },
+      ];
+      const rep = detectRepetition(histForCheck);
+
+      if (rep.type !== "none") {
+        if (rep.type === "perpetualCheck") {
+          setMessage(
+            rep.loser === playerColor
+              ? "連続王手の千日手 - CPUの勝ち..."
+              : "連続王手の千日手 - あなたの勝ち！",
+          );
+        } else {
+          setMessage("千日手 - 引き分け");
+        }
+        return;
+      }
+
+      setMessage(null);
       if (newGame.isCheck && !newGame.isEnd) {
         playCheck();
         setMessage("王手！");
@@ -469,6 +495,7 @@ export function GameView({
     },
     [
       game,
+      entries,
       playerColor,
       currentEval,
       pushMove,
@@ -596,7 +623,7 @@ export function GameView({
 
   // ── AI move ─────────────────────────────────────────
   useEffect(() => {
-    if (!isLive || game.isEnd || isPlayerTurn || aiThinkingRef.current)
+    if (!isLive || isGameEnd || isPlayerTurn || aiThinkingRef.current)
       return;
 
     aiThinkingRef.current = true;
@@ -683,7 +710,26 @@ export function GameView({
           cpuScore !== undefined ? -cpuScore : null,
         );
 
-        if (newGame.isCheck && !newGame.isEnd) {
+        const histForCheck = [
+          ...entries.map((e) => ({
+            sfen: e.state.sfen,
+            isCheck: e.state.isCheck,
+          })),
+          { sfen: newGame.sfen, isCheck: newGame.isCheck },
+        ];
+        const rep = detectRepetition(histForCheck);
+
+        if (rep.type !== "none") {
+          if (rep.type === "perpetualCheck") {
+            setMessage(
+              rep.loser === playerColor
+                ? "連続王手の千日手 - CPUの勝ち..."
+                : "連続王手の千日手 - あなたの勝ち！",
+            );
+          } else {
+            setMessage("千日手 - 引き分け");
+          }
+        } else if (newGame.isCheck && !newGame.isEnd) {
           playCheck();
           setMessage("王手！");
         } else {
@@ -712,8 +758,10 @@ export function GameView({
     };
   }, [
     game,
+    entries,
     isPlayerTurn,
     isLive,
+    isGameEnd,
     playerColor,
     settings.cpuMoveDelay,
     settings.cpuLevel,

@@ -58,10 +58,10 @@ export const HAND_ORDER: Role[] = [
 const CONTROLS_H = 28;
 const EVAL_H = 30;
 const METER_H = 8;
-const INFO_H = 36;
+const INFO_H = 42;
 const BTN_H = 28;
-const GAP = 3;
-const BOTTOM_PAD = 6;
+const GAP = 4;
+const BOTTOM_PAD = 8;
 const FIXED = CONTROLS_H + EVAL_H + METER_H + INFO_H + BTN_H + GAP * 7 + BOTTOM_PAD;
 
 export function calcLayout(vw: number, vh: number): CanvasLayout {

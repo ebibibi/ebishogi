@@ -840,28 +840,40 @@ function drawInfo(
   const fs = Math.max(11, Math.floor(cellSize * 0.24));
   const sfs = Math.max(9, Math.floor(cellSize * 0.18));
   const cx = infoArea.x + infoArea.w / 2;
-  let y = infoArea.y + 2;
 
-  if (state.message && !state.isEnd) {
-    const m = state.message;
-    const bg = m.includes("王手")
-      ? "rgba(220,38,38,0.3)"
-      : "rgba(75,85,99,0.3)";
-    const fg = m.includes("王手") ? "#fca5a5" : "#d1d5db";
-    drawPill(ctx, cx, y, m, bg, fg, fs);
-  } else if (!state.isLive) {
-    ctx.fillStyle = "rgba(251,191,36,0.8)";
-    ctx.font = `${sfs}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(
-      `棋譜閲覧中（${state.viewIndex}手目）`,
-      cx,
-      y + fs / 2 + 2,
-    );
+  const hasFirstLine = (state.message && !state.isEnd) || !state.isLive;
+
+  let statsY: number;
+
+  if (hasFirstLine) {
+    const pillH = fs + 8;
+    const gap = 4;
+    const totalH = pillH + gap + sfs;
+    const startY = infoArea.y + Math.max(0, (infoArea.h - totalH) / 2);
+
+    if (state.message && !state.isEnd) {
+      const m = state.message;
+      const bg = m.includes("王手")
+        ? "rgba(220,38,38,0.3)"
+        : "rgba(75,85,99,0.3)";
+      const fg = m.includes("王手") ? "#fca5a5" : "#d1d5db";
+      drawPill(ctx, cx, startY, m, bg, fg, fs);
+    } else if (!state.isLive) {
+      ctx.fillStyle = "rgba(251,191,36,0.8)";
+      ctx.font = `${sfs}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        `棋譜閲覧中（${state.viewIndex}手目）`,
+        cx,
+        startY + pillH / 2,
+      );
+    }
+
+    statsY = startY + pillH + gap + sfs / 2;
+  } else {
+    statsY = infoArea.y + infoArea.h / 2;
   }
-
-  y += fs + 10;
 
   const parts = [
     state.turn === "sente" ? "先手" : "後手",
@@ -877,7 +889,7 @@ function drawInfo(
   ctx.font = `${sfs}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(parts.join("  "), cx, y);
+  ctx.fillText(parts.join("  "), cx, statsY);
 }
 
 // ── Action Buttons ────────────────────────────────────

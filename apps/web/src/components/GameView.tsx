@@ -8,6 +8,7 @@ import { useGameHistory } from "@/hooks/useGameHistory";
 import { useSettings, CPU_LEVELS } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
 import { useTimer } from "@/hooks/useTimer";
+import { makeUsi } from "shogiops/util";
 import {
   applyMoveToGame,
   usiToMove,
@@ -58,6 +59,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef(false);
   const aiThinkingRef = useRef(false);
+  const lastPlayerMoveUsiRef = useRef<string | null>(null);
 
   const isPlayerTurn = game.turn === playerColor;
   const isInteractive = isLive && isPlayerTurn && !game.isEnd;
@@ -66,6 +68,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
   const {
     arrows,
     badMoveAlert,
+    moveEvaluation,
     engineReady,
     currentEval,
     evaluatePlayerMove,
@@ -105,6 +108,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     moveRipple: null,
     cpuImpact: null,
     alertAnim: null,
+    moveEvalAnim: null,
     gameEndAnim: null,
   });
 
@@ -160,6 +164,34 @@ export function GameView({ onBack }: { onBack: () => void }) {
       cancelled = true;
     };
   }, [badMoveAlert]);
+
+  useEffect(() => {
+    if (!moveEvaluation) {
+      animRef.current.moveEvalAnim = null;
+      return;
+    }
+    let cancelled = false;
+    animRef.current.moveEvalAnim = {
+      evaluation: moveEvaluation,
+      startTime: performance.now(),
+    };
+    const animate = () => {
+      if (cancelled || !animRef.current.moveEvalAnim) return;
+      const elapsed =
+        (performance.now() - animRef.current.moveEvalAnim.startTime) / 1000;
+      if (elapsed < 3.0) {
+        forceRender((n) => n + 1);
+        requestAnimationFrame(animate);
+      } else {
+        animRef.current.moveEvalAnim = null;
+        forceRender((n) => n + 1);
+      }
+    };
+    requestAnimationFrame(animate);
+    return () => {
+      cancelled = true;
+    };
+  }, [moveEvaluation]);
 
   useEffect(() => {
     if (!game.isEnd || !message) {
@@ -387,6 +419,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
       const newGame = applyMoveToGame(game, move);
       if (!newGame) return;
 
+      lastPlayerMoveUsiRef.current = makeUsi(move);
+
       const isCapt =
         "from" in move &&
         game.position.board.get(move.to) !== undefined;
@@ -562,8 +596,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
         );
         if (abortRef.current) return;
 
-        if (result.candidates.length > 0) {
-          evaluatePlayerMove(result.candidates[0].score);
+        if (result.candidates.length > 0 && lastPlayerMoveUsiRef.current) {
+          evaluatePlayerMove(
+            result.candidates[0].score,
+            lastPlayerMoveUsiRef.current,
+          );
         }
 
         if (settings.cpuMoveDelay > 0) {

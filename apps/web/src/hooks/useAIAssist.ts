@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { parseUsi } from "shogiops/util";
+import { parseUsi, squareRank } from "shogiops/util";
+import type { Role } from "shogiops/types";
+import type { Shogi } from "shogiops/variant/shogi";
 import type { GameState } from "@/lib/shogi-game";
 import { squareToCoords } from "@/lib/shogi-game";
 import { getEngine } from "@/lib/engine";
@@ -29,9 +31,14 @@ const ARROW_STYLES = [
   { color: "#CD853F", opacity: 0.6, width: 4.5 },
 ];
 
+const PROMOTABLE_ROLES: ReadonlySet<Role> = new Set<Role>([
+  "pawn", "lance", "knight", "silver", "bishop", "rook",
+]);
+
 function candidateToArrow(
   candidate: CandidateMove,
   index: number,
+  position: Shogi,
 ): ArrowData | null {
   const move = parseUsi(candidate.usi);
   if (!move) return null;
@@ -41,12 +48,27 @@ function candidateToArrow(
 
   if ("from" in move) {
     const from = squareToCoords(move.from);
+    let promotionLabel: "成" | "不成" | undefined;
+    if (move.promotion) {
+      promotionLabel = "成";
+    } else {
+      const piece = position.board.get(move.from);
+      if (piece && PROMOTABLE_ROLES.has(piece.role)) {
+        const fromR = squareRank(move.from);
+        const toR = squareRank(move.to);
+        const inZone = piece.color === "sente"
+          ? (fromR <= 2 || toR <= 2)
+          : (fromR >= 6 || toR >= 6);
+        if (inZone) promotionLabel = "不成";
+      }
+    }
     return {
       fromFile: from.file,
       fromRank: from.rank,
       toFile: to.file,
       toRank: to.rank,
       rank: candidate.rank,
+      promotionLabel,
       ...style,
     };
   }
@@ -172,9 +194,9 @@ export function useAIAssist(
     if (visibleRanks.size === 0) return [];
     return candidates
       .filter((c) => visibleRanks.has(c.rank))
-      .map((c) => candidateToArrow(c, c.rank - 1))
+      .map((c) => candidateToArrow(c, c.rank - 1, game.position))
       .filter((a): a is ArrowData => a !== null);
-  }, [candidates, visibleRanks]);
+  }, [candidates, visibleRanks, game.position]);
 
   useEffect(() => {
     if (!badMoveAlert) return;

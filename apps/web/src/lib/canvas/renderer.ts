@@ -467,13 +467,6 @@ function drawArrows(
   state: RenderState,
 ) {
   for (const a of state.arrows) {
-    const from = fileRankToPixel(
-      a.fromFile,
-      a.fromRank,
-      state.flipped,
-      layout.board,
-      layout.cellSize,
-    );
     const to = fileRankToPixel(
       a.toFile,
       a.toRank,
@@ -481,7 +474,18 @@ function drawArrows(
       layout.board,
       layout.cellSize,
     );
-    drawArrow(ctx, from, to, a.color, a.opacity, a.width);
+    if (a.fromFile !== undefined && a.fromRank !== undefined) {
+      const from = fileRankToPixel(
+        a.fromFile,
+        a.fromRank,
+        state.flipped,
+        layout.board,
+        layout.cellSize,
+      );
+      drawArrow(ctx, from, to, a.color, a.opacity, a.width);
+    } else {
+      drawDropMarker(ctx, to, a.color, a.opacity, a.width, layout.cellSize);
+    }
   }
 }
 
@@ -531,6 +535,27 @@ function drawArrow(
   ctx.closePath();
   ctx.fill();
 
+  ctx.restore();
+}
+
+function drawDropMarker(
+  ctx: CanvasRenderingContext2D,
+  pos: { x: number; y: number },
+  color: string,
+  opacity: number,
+  width: number,
+  cellSize: number,
+) {
+  const r = cellSize * 0.35;
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = width * 3;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 }
 

@@ -34,15 +34,23 @@ function candidateToArrow(
   index: number,
 ): ArrowData | null {
   const move = parseUsi(candidate.usi);
-  if (!move || !("from" in move)) return null;
+  if (!move) return null;
 
-  const from = squareToCoords(move.from);
   const to = squareToCoords(move.to);
   const style = ARROW_STYLES[index] ?? ARROW_STYLES[2];
 
+  if ("from" in move) {
+    const from = squareToCoords(move.from);
+    return {
+      fromFile: from.file,
+      fromRank: from.rank,
+      toFile: to.file,
+      toRank: to.rank,
+      ...style,
+    };
+  }
+
   return {
-    fromFile: from.file,
-    fromRank: from.rank,
     toFile: to.file,
     toRank: to.rank,
     ...style,

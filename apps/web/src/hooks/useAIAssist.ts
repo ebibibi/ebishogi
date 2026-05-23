@@ -209,6 +209,7 @@ export function useAIAssist(
     settings.arrowDelay3rd,
     settings.arrowDelay2nd,
     settings.arrowDelay1st,
+    settings.showHints,
   ]);
 
   useEffect(() => {
@@ -229,7 +230,7 @@ export function useAIAssist(
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, engineReady, game.isEnd]);
+  }, [active, engineReady, game]);
 
   const arrows = useMemo(() => {
     if (!settings.showHints) return [];

@@ -598,11 +598,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
 
         let evalShown = false;
         if (result.candidates.length > 0 && lastPlayerMoveUsiRef.current) {
-          evalShown = evaluatePlayerMove(
+          evalShown = await evaluatePlayerMove(
             result.candidates[0].score,
             lastPlayerMoveUsiRef.current,
           );
         }
+        if (abortRef.current) return;
 
         const waitMs = evalShown
           ? Math.max(settings.cpuMoveDelay, EVAL_DISPLAY_MS)

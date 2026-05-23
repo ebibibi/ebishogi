@@ -37,13 +37,15 @@ export type MoveEvaluation = {
 
 export const EVAL_DISPLAY_MS = 3000;
 
+const MIN_EVAL_DEPTH = 10;
+
 type AIAssistResult = {
   arrows: ArrowData[];
   badMoveAlert: BadMoveAlert | null;
   moveEvaluation: MoveEvaluation | null;
   engineReady: boolean;
   currentEval: number | null;
-  evaluatePlayerMove: (cpuScore: number, playerMoveUsi: string) => boolean;
+  evaluatePlayerMove: (cpuScore: number, playerMoveUsi: string) => Promise<boolean>;
   thinkingElapsed: number;
 };
 
@@ -134,6 +136,8 @@ export function useAIAssist(
   const [thinkingElapsed, setThinkingElapsed] = useState(0);
   const prevEvalRef = useRef<number | null>(null);
   const playerCandidatesRef = useRef<readonly CandidateMove[]>([]);
+  const preMoveSfenRef = useRef<string | null>(null);
+  const searchCompletedRef = useRef(false);
   const thinkingStartRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -158,6 +162,9 @@ export function useAIAssist(
     const timers: ReturnType<typeof setTimeout>[] = [];
     const engine = getEngine();
 
+    preMoveSfenRef.current = game.sfen;
+    searchCompletedRef.current = false;
+
     engine
       .search(game.sfen, {
         multiPV: 3,
@@ -165,8 +172,10 @@ export function useAIAssist(
         onInfo: (infoCandidates) => {
           if (cancelled) return;
           setCandidates(infoCandidates);
+          playerCandidatesRef.current = infoCandidates;
           if (infoCandidates.length > 0) {
             setCurrentEval(infoCandidates[0].score);
+            prevEvalRef.current = infoCandidates[0].score;
           }
         },
       })
@@ -174,6 +183,7 @@ export function useAIAssist(
         if (cancelled) return;
         setCandidates(result.candidates);
         playerCandidatesRef.current = result.candidates;
+        searchCompletedRef.current = true;
         if (result.candidates.length > 0) {
           prevEvalRef.current = result.candidates[0].score;
           setCurrentEval(result.candidates[0].score);
@@ -253,7 +263,7 @@ export function useAIAssist(
   }, [moveEvaluation]);
 
   const evaluatePlayerMove = useCallback(
-    (cpuScore: number, playerMoveUsi: string): boolean => {
+    async (cpuScore: number, playerMoveUsi: string): Promise<boolean> => {
       const playerScoreAfter = -cpuScore;
       setCurrentEval(playerScoreAfter);
 
@@ -261,13 +271,31 @@ export function useAIAssist(
         prevEvalRef.current = 0;
         return false;
       }
-      const prevEval = prevEvalRef.current;
+
+      let stored = playerCandidatesRef.current;
+      let prevEval = prevEvalRef.current;
+
+      if (!searchCompletedRef.current && preMoveSfenRef.current) {
+        try {
+          const engine = getEngine();
+          const result = await engine.search(preMoveSfenRef.current, {
+            multiPV: 3,
+            depth: MIN_EVAL_DEPTH,
+          });
+          if (result.candidates.length > 0) {
+            stored = result.candidates;
+            prevEval = result.candidates[0].score;
+          }
+        } catch {
+          // use intermediate results from onInfo
+        }
+      }
+
       if (prevEval === null) return false;
       const change = playerScoreAfter - prevEval;
 
       setBadMoveAlert(null);
 
-      const stored = playerCandidatesRef.current;
       const matched = stored.find((c) => c.usi === playerMoveUsi);
       const candidateRank = matched?.rank ?? null;
       const { grade, label } = classifyMove(change, candidateRank);

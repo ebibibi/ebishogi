@@ -27,28 +27,28 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
           <Slider
             label="3番手"
             value={settings.arrowDelay3rd}
-            min={5}
+            min={0}
             max={120}
-            step={5}
-            fmt={(v) => `${v}秒`}
+            step={1}
+            fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
             onChange={(v) => onUpdate({ arrowDelay3rd: v })}
           />
           <Slider
             label="2番手"
             value={settings.arrowDelay2nd}
-            min={5}
+            min={0}
             max={120}
-            step={5}
-            fmt={(v) => `${v}秒`}
+            step={1}
+            fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
             onChange={(v) => onUpdate({ arrowDelay2nd: v })}
           />
           <Slider
             label="1番手"
             value={settings.arrowDelay1st}
-            min={10}
+            min={0}
             max={180}
-            step={5}
-            fmt={(v) => `${v}秒`}
+            step={1}
+            fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
             onChange={(v) => onUpdate({ arrowDelay1st: v })}
           />
         </section>

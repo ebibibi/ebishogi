@@ -70,7 +70,7 @@ export function hitTest(
   if (top) return top;
 
   for (const btn of getControlButtons(layout, state)) {
-    if (!btn.disabled && inRect(x, y, btn))
+    if (!btn.hidden && !btn.disabled && inRect(x, y, btn))
       return { type: "button", action: btn.action };
   }
 

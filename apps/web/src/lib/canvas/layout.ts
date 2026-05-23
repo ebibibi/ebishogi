@@ -42,6 +42,7 @@ export type ButtonDef = {
   w: number;
   h: number;
   disabled: boolean;
+  hidden: boolean;
   style: "default" | "accent" | "subtle";
 };
 
@@ -205,6 +206,7 @@ export function getControlButtons(
       action: "takeback",
       w: 50,
       disabled: !state.canTakeBack || !state.isLive,
+      hidden: false,
       style: "default",
     },
     {
@@ -212,6 +214,7 @@ export function getControlButtons(
       action: "stepBack",
       w: 28,
       disabled: !state.canStepBack,
+      hidden: false,
       style: "default",
     },
     {
@@ -219,6 +222,7 @@ export function getControlButtons(
       action: "stepForward",
       w: 28,
       disabled: !state.canStepForward,
+      hidden: false,
       style: "default",
     },
     {
@@ -226,19 +230,18 @@ export function getControlButtons(
       action: "goToLatest",
       w: 32,
       disabled: state.isLive,
+      hidden: false,
       style: "default",
     },
-  ];
-
-  if (!state.isLive) {
-    defs.push({
+    {
       label: "ここから再開",
       action: "resume",
       w: 80,
       disabled: false,
+      hidden: state.isLive,
       style: "accent",
-    });
-  }
+    },
+  ];
 
   const totalW =
     defs.reduce((s, d) => s + d.w, 0) + (defs.length - 1) * gap;
@@ -263,6 +266,7 @@ export function getActionButtons(layout: CanvasLayout): ButtonDef[] {
       action: "reset",
       w: 70,
       disabled: false,
+      hidden: false,
       style: "default",
     },
     {
@@ -270,6 +274,7 @@ export function getActionButtons(layout: CanvasLayout): ButtonDef[] {
       action: "settings",
       w: 40,
       disabled: false,
+      hidden: false,
       style: "default",
     },
     {
@@ -277,6 +282,7 @@ export function getActionButtons(layout: CanvasLayout): ButtonDef[] {
       action: "back",
       w: 56,
       disabled: false,
+      hidden: false,
       style: "subtle",
     },
   ];

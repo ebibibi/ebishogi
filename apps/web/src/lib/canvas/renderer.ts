@@ -479,7 +479,7 @@ function drawArrows(
     playerIsBottom,
   );
 
-  const badges: { x: number; y: number; rank: number; color: string }[] = [];
+  const badges: { x: number; y: number; rank: number; color: string; promotionLabel?: "成" | "不成" }[] = [];
 
   for (const a of state.arrows) {
     const to = fileRankToPixel(
@@ -514,12 +514,15 @@ function drawArrows(
     }
 
     if (a.rank !== undefined) {
-      badges.push({ x: to.x, y: to.y, rank: a.rank, color: a.color });
+      badges.push({ x: to.x, y: to.y, rank: a.rank, color: a.color, promotionLabel: a.promotionLabel });
     }
   }
 
   for (const b of badges) {
     drawRankBadge(ctx, b.x, b.y, b.rank, b.color, layout.cellSize);
+    if (b.promotionLabel) {
+      drawPromotionLabel(ctx, b.x, b.y, b.promotionLabel, layout.cellSize);
+    }
   }
 }
 
@@ -557,6 +560,38 @@ function drawRankBadge(
   ctx.textBaseline = "middle";
   ctx.fillText(String(rank), bx, by);
 
+  ctx.restore();
+}
+
+function drawPromotionLabel(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  label: "成" | "不成",
+  cellSize: number,
+) {
+  const badgeR = Math.max(8, Math.floor(cellSize * 0.2));
+  const bx = cx + cellSize * 0.32;
+  const by = cy - cellSize * 0.32 + badgeR + 2;
+
+  const fontSize = Math.max(8, Math.floor(cellSize * 0.18));
+  ctx.save();
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  const tw = ctx.measureText(label).width;
+  const pw = tw + 6;
+  const ph = fontSize + 4;
+
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 3;
+  ctx.fillStyle = label === "成" ? "rgba(220,38,38,0.9)" : "rgba(82,82,91,0.9)";
+  rr(ctx, bx - pw / 2, by, pw, ph, 3);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, bx, by + ph / 2);
   ctx.restore();
 }
 

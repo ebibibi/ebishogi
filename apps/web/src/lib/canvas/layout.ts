@@ -31,6 +31,7 @@ export type ArrowData = {
   width: number;
   dropRole?: Role;
   rank?: number;
+  promotionLabel?: "成" | "不成";
 };
 
 export type ButtonDef = {

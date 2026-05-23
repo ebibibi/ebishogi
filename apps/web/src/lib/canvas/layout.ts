@@ -22,8 +22,8 @@ export type CanvasLayout = {
 };
 
 export type ArrowData = {
-  fromFile: number;
-  fromRank: number;
+  fromFile?: number;
+  fromRank?: number;
   toFile: number;
   toRank: number;
   color: string;

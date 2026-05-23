@@ -21,36 +21,56 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
         <h2 className="text-lg font-bold mb-4">設定</h2>
 
         <section className="mb-5">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-3">
-            候補手の表示タイミング
-          </h3>
-          <Slider
-            label="3番手"
-            value={settings.arrowDelay3rd}
-            min={0}
-            max={120}
-            step={1}
-            fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
-            onChange={(v) => onUpdate({ arrowDelay3rd: v })}
-          />
-          <Slider
-            label="2番手"
-            value={settings.arrowDelay2nd}
-            min={0}
-            max={120}
-            step={1}
-            fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
-            onChange={(v) => onUpdate({ arrowDelay2nd: v })}
-          />
-          <Slider
-            label="1番手"
-            value={settings.arrowDelay1st}
-            min={0}
-            max={180}
-            step={1}
-            fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
-            onChange={(v) => onUpdate({ arrowDelay1st: v })}
-          />
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-zinc-300">
+              AIの推奨手
+            </h3>
+            <button
+              onClick={() => onUpdate({ showHints: !settings.showHints })}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                settings.showHints ? "bg-amber-600" : "bg-zinc-600"
+              }`}
+              type="button"
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.showHints ? "translate-x-6" : ""
+                }`}
+              />
+            </button>
+          </div>
+          {settings.showHints && (
+            <>
+              <p className="text-xs text-zinc-500 mb-2">表示タイミング</p>
+              <Slider
+                label="3番手"
+                value={settings.arrowDelay3rd}
+                min={0}
+                max={120}
+                step={1}
+                fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
+                onChange={(v) => onUpdate({ arrowDelay3rd: v })}
+              />
+              <Slider
+                label="2番手"
+                value={settings.arrowDelay2nd}
+                min={0}
+                max={120}
+                step={1}
+                fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
+                onChange={(v) => onUpdate({ arrowDelay2nd: v })}
+              />
+              <Slider
+                label="1番手"
+                value={settings.arrowDelay1st}
+                min={0}
+                max={180}
+                step={1}
+                fmt={(v) => (v === 0 ? "即時" : `${v}秒`)}
+                onChange={(v) => onUpdate({ arrowDelay1st: v })}
+              />
+            </>
+          )}
         </section>
 
         <section className="mb-5">

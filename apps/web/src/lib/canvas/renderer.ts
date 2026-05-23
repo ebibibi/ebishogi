@@ -772,6 +772,7 @@ function drawTimerMeter(
   layout: CanvasLayout,
   state: RenderState,
 ) {
+  if (!state.settings.showHints) return;
   const { timerMeter } = layout;
   const active =
     state.turn === state.playerColor &&

@@ -479,6 +479,8 @@ function drawArrows(
     playerIsBottom,
   );
 
+  const badges: { x: number; y: number; rank: number; color: string }[] = [];
+
   for (const a of state.arrows) {
     const to = fileRankToPixel(
       a.toFile,
@@ -510,7 +512,52 @@ function drawArrows(
     } else {
       drawDropMarker(ctx, to, a.color, a.opacity, a.width, layout.cellSize);
     }
+
+    if (a.rank !== undefined) {
+      badges.push({ x: to.x, y: to.y, rank: a.rank, color: a.color });
+    }
   }
+
+  for (const b of badges) {
+    drawRankBadge(ctx, b.x, b.y, b.rank, b.color, layout.cellSize);
+  }
+}
+
+function drawRankBadge(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rank: number,
+  color: string,
+  cellSize: number,
+) {
+  const r = Math.max(8, Math.floor(cellSize * 0.2));
+  const bx = cx + cellSize * 0.32;
+  const by = cy - cellSize * 0.32;
+
+  ctx.save();
+
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(bx, by, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(0,0,0,0.4)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(bx, by, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#000";
+  ctx.font = `bold ${Math.floor(r * 1.3)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(rank), bx, by);
+
+  ctx.restore();
 }
 
 function drawArrow(

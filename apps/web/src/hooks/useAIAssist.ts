@@ -46,6 +46,7 @@ function candidateToArrow(
       fromRank: from.rank,
       toFile: to.file,
       toRank: to.rank,
+      rank: candidate.rank,
       ...style,
     };
   }
@@ -54,6 +55,7 @@ function candidateToArrow(
     toFile: to.file,
     toRank: to.rank,
     dropRole: move.role,
+    rank: candidate.rank,
     ...style,
   };
 }

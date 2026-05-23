@@ -103,6 +103,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     flash: false,
     shakeX: 0,
     moveRipple: null,
+    cpuImpact: null,
     alertAnim: null,
   });
 
@@ -276,6 +277,72 @@ export function GameView({ onBack }: { onBack: () => void }) {
         }
       };
       requestAnimationFrame(animate);
+    },
+    [flipped, layout.cellSize],
+  );
+
+  const triggerCpuImpact = useCallback(
+    (sq: number) => {
+      const { file, rank } = squareToCoords(sq);
+      const col = flipped ? file - 1 : 9 - file;
+      const row = flipped ? 9 - rank : rank - 1;
+      const cx = col * layout.cellSize + layout.cellSize / 2;
+      const cy = row * layout.cellSize + layout.cellSize / 2;
+      animRef.current.cpuImpact = { cx, cy, startTime: performance.now() };
+      animRef.current.flash = true;
+      setTimeout(() => {
+        animRef.current.flash = false;
+        forceRender((n) => n + 1);
+      }, 80);
+
+      const start = performance.now();
+      const shake = () => {
+        const e = performance.now() - start;
+        if (e > 250) {
+          animRef.current.shakeX = 0;
+          forceRender((n) => n + 1);
+          return;
+        }
+        animRef.current.shakeX =
+          Math.sin(e * 0.06) * 5 * (1 - e / 250);
+        forceRender((n) => n + 1);
+        requestAnimationFrame(shake);
+      };
+
+      const animateImpact = () => {
+        if (!animRef.current.cpuImpact) return;
+        const e =
+          (performance.now() - animRef.current.cpuImpact.startTime) / 1000;
+        if (e < 0.7) {
+          forceRender((n) => n + 1);
+          requestAnimationFrame(animateImpact);
+        } else {
+          animRef.current.cpuImpact = null;
+          forceRender((n) => n + 1);
+        }
+      };
+
+      requestAnimationFrame(shake);
+      requestAnimationFrame(animateImpact);
+
+      animRef.current.particles = createParticles(
+        file,
+        rank,
+        flipped,
+        layout.cellSize,
+      );
+      animRef.current.captureTime = performance.now();
+      const animateParticles = () => {
+        const e = (performance.now() - animRef.current.captureTime) / 1000;
+        if (e < 0.5) {
+          forceRender((n) => n + 1);
+          requestAnimationFrame(animateParticles);
+        } else {
+          animRef.current.particles = [];
+          forceRender((n) => n + 1);
+        }
+      };
+      requestAnimationFrame(animateParticles);
     },
     [flipped, layout.cellSize],
   );
@@ -506,8 +573,8 @@ export function GameView({ onBack }: { onBack: () => void }) {
           triggerCapture(move.to);
         } else {
           playMove();
-          triggerMoveRipple(move.to);
         }
+        triggerCpuImpact(move.to);
 
         const cpuScore = chosen?.score;
         pushMove(
@@ -552,7 +619,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     playCapture,
     playCheck,
     triggerCapture,
-    triggerMoveRipple,
+    triggerCpuImpact,
   ]);
 
   // ── Canvas click ────────────────────────────────────

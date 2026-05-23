@@ -26,6 +26,7 @@ export type AnimState = {
   flash: boolean;
   shakeX: number;
   moveRipple: { cx: number; cy: number; startTime: number } | null;
+  cpuImpact: { cx: number; cy: number; startTime: number } | null;
   alertAnim: { text: string; severity: string; startTime: number } | null;
 };
 
@@ -110,6 +111,7 @@ export function drawCanvas(
   drawBoard(ctx, layout, state, images);
   drawArrows(ctx, layout, state);
   drawMoveRipple(ctx, layout, anim);
+  drawCpuImpact(ctx, layout, anim);
   drawHandPanel(ctx, layout, state, images, false);
 
   ctx.restore();
@@ -884,6 +886,69 @@ function drawMoveRipple(
   ctx.beginPath();
   ctx.arc(cx, cy, radius * 0.4, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+}
+
+function drawCpuImpact(
+  ctx: CanvasRenderingContext2D,
+  layout: CanvasLayout,
+  anim: AnimState,
+) {
+  if (!anim.cpuImpact) return;
+  const elapsed = (performance.now() - anim.cpuImpact.startTime) / 1000;
+  if (elapsed > 0.7) return;
+
+  const cx = layout.board.x + anim.cpuImpact.cx;
+  const cy = layout.board.y + anim.cpuImpact.cy;
+  const cell = layout.cellSize;
+
+  ctx.save();
+
+  const flashT = Math.min(elapsed / 0.12, 1);
+  if (flashT < 1) {
+    const flashAlpha = (1 - flashT) * 0.6;
+    const flashR = cell * (0.3 + flashT * 0.8);
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, flashR);
+    grad.addColorStop(0, `rgba(255,255,200,${flashAlpha})`);
+    grad.addColorStop(0.5, `rgba(255,200,50,${flashAlpha * 0.5})`);
+    grad.addColorStop(1, `rgba(255,150,0,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, flashR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const ringDelay = i * 0.07;
+    const ringT = Math.max(0, elapsed - ringDelay) / 0.5;
+    if (ringT <= 0 || ringT >= 1) continue;
+    const ringR = cell * (0.2 + ringT * 1.5);
+    const ringAlpha = (1 - ringT) * 0.7;
+    ctx.globalAlpha = ringAlpha;
+    ctx.strokeStyle = i === 0 ? "#FFD700" : i === 1 ? "#FFA500" : "#FF6347";
+    ctx.lineWidth = (3 - i) * 1.5 * (1 - ringT);
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const lineCount = 16;
+  const lineT = Math.min(elapsed / 0.5, 1);
+  if (lineT < 1) {
+    ctx.globalAlpha = (1 - lineT) * 0.6;
+    ctx.strokeStyle = "#FFD700";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < lineCount; i++) {
+      const angle = (Math.PI * 2 * i) / lineCount;
+      const innerR = cell * (0.3 + lineT * 0.5);
+      const outerR = cell * (0.5 + lineT * 1.8);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+      ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+      ctx.stroke();
+    }
+  }
+
   ctx.restore();
 }
 

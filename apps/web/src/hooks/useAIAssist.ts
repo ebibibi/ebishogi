@@ -16,12 +16,32 @@ export type BadMoveAlert = {
   severity: "blunder" | "mistake" | "inaccuracy";
 };
 
+export type MoveGrade =
+  | "best"
+  | "great"
+  | "good"
+  | "neutral"
+  | "inaccuracy"
+  | "mistake"
+  | "blunder";
+
+export type MoveEvaluation = {
+  grade: MoveGrade;
+  label: string;
+  evalBefore: number;
+  evalAfter: number;
+  evalChange: number;
+  candidateRank: number | null;
+  candidateTotal: number;
+};
+
 type AIAssistResult = {
   arrows: ArrowData[];
   badMoveAlert: BadMoveAlert | null;
+  moveEvaluation: MoveEvaluation | null;
   engineReady: boolean;
   currentEval: number | null;
-  evaluatePlayerMove: (cpuScore: number) => void;
+  evaluatePlayerMove: (cpuScore: number, playerMoveUsi: string) => void;
   thinkingElapsed: number;
 };
 
@@ -82,6 +102,20 @@ function candidateToArrow(
   };
 }
 
+function classifyMove(
+  change: number,
+  candidateRank: number | null,
+): { grade: MoveGrade; label: string } {
+  if (candidateRank === 1 && change >= -20)
+    return { grade: "best", label: "最善手！" };
+  if (change >= -20) return { grade: "great", label: "好手！" };
+  if (change >= -50) return { grade: "good", label: "良い手" };
+  if (change >= -100) return { grade: "neutral", label: "普通" };
+  if (change >= -200) return { grade: "inaccuracy", label: "疑問手" };
+  if (change >= -500) return { grade: "mistake", label: "悪手" };
+  return { grade: "blunder", label: "大悪手！" };
+}
+
 export function useAIAssist(
   game: GameState,
   active: boolean,
@@ -90,10 +124,14 @@ export function useAIAssist(
   const [candidates, setCandidates] = useState<readonly CandidateMove[]>([]);
   const [visibleRanks, setVisibleRanks] = useState<Set<number>>(new Set());
   const [badMoveAlert, setBadMoveAlert] = useState<BadMoveAlert | null>(null);
+  const [moveEvaluation, setMoveEvaluation] = useState<MoveEvaluation | null>(
+    null,
+  );
   const [engineReady, setEngineReady] = useState(false);
   const [currentEval, setCurrentEval] = useState<number | null>(null);
   const [thinkingElapsed, setThinkingElapsed] = useState(0);
   const prevEvalRef = useRef<number | null>(null);
+  const playerCandidatesRef = useRef<readonly CandidateMove[]>([]);
   const thinkingStartRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -133,6 +171,7 @@ export function useAIAssist(
       .then((result) => {
         if (cancelled) return;
         setCandidates(result.candidates);
+        playerCandidatesRef.current = result.candidates;
         if (result.candidates.length > 0) {
           prevEvalRef.current = result.candidates[0].score;
           setCurrentEval(result.candidates[0].score);
@@ -204,8 +243,14 @@ export function useAIAssist(
     return () => clearTimeout(timer);
   }, [badMoveAlert]);
 
+  useEffect(() => {
+    if (!moveEvaluation) return;
+    const timer = setTimeout(() => setMoveEvaluation(null), 3000);
+    return () => clearTimeout(timer);
+  }, [moveEvaluation]);
+
   const evaluatePlayerMove = useCallback(
-    (cpuScore: number) => {
+    (cpuScore: number, playerMoveUsi: string) => {
       const playerScoreAfter = -cpuScore;
       setCurrentEval(playerScoreAfter);
 
@@ -217,15 +262,22 @@ export function useAIAssist(
       if (prevEval === null) return;
       const change = playerScoreAfter - prevEval;
 
-      if (change < -500) {
-        setBadMoveAlert({ message: "大悪手！", severity: "blunder" });
-      } else if (change < -200) {
-        setBadMoveAlert({ message: "悪手", severity: "mistake" });
-      } else if (change < -100) {
-        setBadMoveAlert({ message: "疑問手", severity: "inaccuracy" });
-      } else {
-        setBadMoveAlert(null);
-      }
+      setBadMoveAlert(null);
+
+      const stored = playerCandidatesRef.current;
+      const matched = stored.find((c) => c.usi === playerMoveUsi);
+      const candidateRank = matched?.rank ?? null;
+      const { grade, label } = classifyMove(change, candidateRank);
+
+      setMoveEvaluation({
+        grade,
+        label,
+        evalBefore: prevEval,
+        evalAfter: playerScoreAfter,
+        evalChange: change,
+        candidateRank,
+        candidateTotal: stored.length,
+      });
     },
     [game.moveCount],
   );
@@ -233,6 +285,7 @@ export function useAIAssist(
   return {
     arrows,
     badMoveAlert,
+    moveEvaluation,
     engineReady,
     currentEval,
     evaluatePlayerMove,

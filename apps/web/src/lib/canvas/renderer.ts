@@ -1,6 +1,7 @@
 import type { Shogi } from "shogiops/variant/shogi";
 import type { Color, Role, Square, MoveOrDrop } from "shogiops/types";
 import type { GameSettings } from "@/hooks/useSettings";
+import type { MoveEvaluation, MoveGrade } from "@/hooks/useAIAssist";
 import type { CanvasLayout, ArrowData } from "./layout";
 import {
   fileRankToPixel,
@@ -28,6 +29,7 @@ export type AnimState = {
   moveRipple: { cx: number; cy: number; startTime: number } | null;
   cpuImpact: { cx: number; cy: number; startTime: number } | null;
   alertAnim: { text: string; severity: string; startTime: number } | null;
+  moveEvalAnim: { evaluation: MoveEvaluation; startTime: number } | null;
   gameEndAnim: {
     text: string;
     kind: "win" | "lose" | "draw";
@@ -143,6 +145,7 @@ export function drawCanvas(
   }
 
   if (state.showPromotion) drawPromotionDialog(ctx, layout);
+  drawMoveEvalOverlay(ctx, layout, anim);
   drawBadMoveOverlay(ctx, layout, anim);
   drawGameEndOverlay(ctx, layout, anim);
 
@@ -1125,6 +1128,190 @@ function drawBadMoveOverlay(
   ctx.shadowColor = "rgba(0,0,0,0.5)";
   ctx.shadowBlur = 6;
   ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+// ── Move Evaluation Overlay ──────────────────────────
+
+const GRADE_STYLES: Record<
+  MoveGrade,
+  { bg: string; fg: string; outline: string; glow: string; icon: string }
+> = {
+  best: {
+    bg: "rgba(21,128,61,0.92)",
+    fg: "#bbf7d0",
+    outline: "#4ade80",
+    glow: "rgba(74,222,128,0.5)",
+    icon: "★",
+  },
+  great: {
+    bg: "rgba(22,163,74,0.88)",
+    fg: "#dcfce7",
+    outline: "#86efac",
+    glow: "rgba(134,239,172,0.4)",
+    icon: "◎",
+  },
+  good: {
+    bg: "rgba(37,99,235,0.85)",
+    fg: "#dbeafe",
+    outline: "#93c5fd",
+    glow: "rgba(147,197,253,0.3)",
+    icon: "○",
+  },
+  neutral: {
+    bg: "rgba(75,85,99,0.82)",
+    fg: "#e5e7eb",
+    outline: "#9ca3af",
+    glow: "rgba(156,163,175,0.2)",
+    icon: "─",
+  },
+  inaccuracy: {
+    bg: "rgba(161,98,7,0.88)",
+    fg: "#fef9c3",
+    outline: "#fde047",
+    glow: "rgba(253,224,71,0.3)",
+    icon: "?!",
+  },
+  mistake: {
+    bg: "rgba(234,88,12,0.9)",
+    fg: "#fed7aa",
+    outline: "#fb923c",
+    glow: "rgba(251,146,60,0.4)",
+    icon: "?",
+  },
+  blunder: {
+    bg: "rgba(185,28,28,0.92)",
+    fg: "#fecaca",
+    outline: "#f87171",
+    glow: "rgba(248,113,113,0.5)",
+    icon: "??",
+  },
+};
+
+function drawMoveEvalOverlay(
+  ctx: CanvasRenderingContext2D,
+  layout: CanvasLayout,
+  anim: AnimState,
+) {
+  if (!anim.moveEvalAnim) return;
+  const elapsed = (performance.now() - anim.moveEvalAnim.startTime) / 1000;
+  if (elapsed > 3.0) return;
+
+  const { evaluation } = anim.moveEvalAnim;
+  const style = GRADE_STYLES[evaluation.grade];
+
+  let bgAlpha = 0.25;
+  if (elapsed < 0.2) bgAlpha = (elapsed / 0.2) * 0.25;
+  else if (elapsed > 2.5) bgAlpha = 0.25 * (1 - (elapsed - 2.5) / 0.5);
+
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${bgAlpha})`;
+  ctx.fillRect(0, 0, layout.canvasW, layout.canvasH);
+
+  let scale = 1;
+  let alpha = 1;
+  if (elapsed < 0.15) {
+    scale = 1.6 - 0.6 * (elapsed / 0.15);
+  } else if (elapsed < 0.25) {
+    scale = 1 + 0.04 * Math.sin(((elapsed - 0.15) / 0.1) * Math.PI);
+  } else if (elapsed > 2.5) {
+    alpha = 1 - (elapsed - 2.5) / 0.5;
+    scale = 1 - (elapsed - 2.5) * 0.08;
+  }
+
+  const cx = layout.canvasW / 2;
+  const cy = layout.board.y + layout.board.h * 0.35;
+
+  const titleFs = Math.max(28, Math.floor(layout.cellSize * 0.6));
+  const subFs = Math.max(14, Math.floor(layout.cellSize * 0.3));
+  const smallFs = Math.max(12, Math.floor(layout.cellSize * 0.25));
+
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+
+  const cardW = Math.max(200, Math.floor(layout.board.w * 0.65));
+  const cardH = titleFs + subFs * 2 + smallFs + 56;
+
+  ctx.shadowColor = style.glow;
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = style.bg;
+  rr(ctx, -cardW / 2, -cardH / 2, cardW, cardH, 16);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = style.outline;
+  ctx.lineWidth = 2;
+  rr(ctx, -cardW / 2, -cardH / 2, cardW, cardH, 16);
+  ctx.stroke();
+
+  let yOff = -cardH / 2 + 16;
+
+  ctx.fillStyle = style.fg;
+  ctx.font = `bold ${titleFs}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = style.glow;
+  ctx.shadowBlur = 8;
+  ctx.fillText(`${style.icon} ${evaluation.label}`, 0, yOff + titleFs / 2);
+  ctx.shadowBlur = 0;
+
+  yOff += titleFs + 10;
+
+  const evBefore = fmtEval(evaluation.evalBefore);
+  const evAfter = fmtEval(evaluation.evalAfter);
+  ctx.font = `bold ${subFs}px monospace`;
+  const arrowStr = "  →  ";
+  const fullW =
+    ctx.measureText(evBefore.text).width +
+    ctx.measureText(arrowStr).width +
+    ctx.measureText(evAfter.text).width;
+  let tx = -fullW / 2;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = evBefore.color;
+  ctx.fillText(evBefore.text, tx, yOff + subFs / 2);
+  tx += ctx.measureText(evBefore.text).width;
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.fillText(arrowStr, tx, yOff + subFs / 2);
+  tx += ctx.measureText(arrowStr).width;
+  ctx.fillStyle = evAfter.color;
+  ctx.fillText(evAfter.text, tx, yOff + subFs / 2);
+  ctx.textAlign = "center";
+
+  yOff += subFs + 6;
+
+  const changeSign = evaluation.evalChange >= 0 ? "+" : "";
+  const changeColor =
+    evaluation.evalChange >= 0
+      ? "rgba(134,239,172,0.9)"
+      : evaluation.evalChange > -100
+        ? "rgba(253,224,71,0.9)"
+        : "rgba(248,113,113,0.9)";
+  ctx.font = `bold ${smallFs}px monospace`;
+  ctx.fillStyle = changeColor;
+  ctx.fillText(
+    `(${changeSign}${evaluation.evalChange})`,
+    0,
+    yOff + smallFs / 2,
+  );
+
+  yOff += smallFs + 8;
+
+  const rankText =
+    evaluation.candidateRank !== null
+      ? `第${evaluation.candidateRank}候補`
+      : "候補外";
+  const rankColor =
+    evaluation.candidateRank === 1
+      ? "#fbbf24"
+      : evaluation.candidateRank !== null
+        ? "#93c5fd"
+        : "#a1a1aa";
+  ctx.font = `bold ${smallFs}px sans-serif`;
+  ctx.fillStyle = rankColor;
+  ctx.fillText(rankText, 0, yOff + smallFs / 2);
+
   ctx.restore();
 }
 

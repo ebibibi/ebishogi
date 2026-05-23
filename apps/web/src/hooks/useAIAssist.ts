@@ -35,13 +35,15 @@ export type MoveEvaluation = {
   candidateTotal: number;
 };
 
+export const EVAL_DISPLAY_MS = 3000;
+
 type AIAssistResult = {
   arrows: ArrowData[];
   badMoveAlert: BadMoveAlert | null;
   moveEvaluation: MoveEvaluation | null;
   engineReady: boolean;
   currentEval: number | null;
-  evaluatePlayerMove: (cpuScore: number, playerMoveUsi: string) => void;
+  evaluatePlayerMove: (cpuScore: number, playerMoveUsi: string) => boolean;
   thinkingElapsed: number;
 };
 
@@ -246,21 +248,21 @@ export function useAIAssist(
 
   useEffect(() => {
     if (!moveEvaluation) return;
-    const timer = setTimeout(() => setMoveEvaluation(null), 3000);
+    const timer = setTimeout(() => setMoveEvaluation(null), EVAL_DISPLAY_MS);
     return () => clearTimeout(timer);
   }, [moveEvaluation]);
 
   const evaluatePlayerMove = useCallback(
-    (cpuScore: number, playerMoveUsi: string) => {
+    (cpuScore: number, playerMoveUsi: string): boolean => {
       const playerScoreAfter = -cpuScore;
       setCurrentEval(playerScoreAfter);
 
       if (game.moveCount <= 1) {
         prevEvalRef.current = 0;
-        return;
+        return false;
       }
       const prevEval = prevEvalRef.current;
-      if (prevEval === null) return;
+      if (prevEval === null) return false;
       const change = playerScoreAfter - prevEval;
 
       setBadMoveAlert(null);
@@ -279,6 +281,7 @@ export function useAIAssist(
         candidateRank,
         candidateTotal: stored.length,
       });
+      return true;
     },
     [game.moveCount],
   );

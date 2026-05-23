@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { MoveOrDrop, Color, Square, Role, Piece } from "shogiops/types";
 import { SettingsPanel } from "@/components/SettingsPanel";
-import { useAIAssist } from "@/hooks/useAIAssist";
+import { useAIAssist, EVAL_DISPLAY_MS } from "@/hooks/useAIAssist";
 import { useGameHistory } from "@/hooks/useGameHistory";
 import { useSettings, CPU_LEVELS } from "@/hooks/useSettings";
 import { useSound } from "@/hooks/useSound";
@@ -596,16 +596,20 @@ export function GameView({ onBack }: { onBack: () => void }) {
         );
         if (abortRef.current) return;
 
+        let evalShown = false;
         if (result.candidates.length > 0 && lastPlayerMoveUsiRef.current) {
-          evaluatePlayerMove(
+          evalShown = evaluatePlayerMove(
             result.candidates[0].score,
             lastPlayerMoveUsiRef.current,
           );
         }
 
-        if (settings.cpuMoveDelay > 0) {
+        const waitMs = evalShown
+          ? Math.max(settings.cpuMoveDelay, EVAL_DISPLAY_MS)
+          : settings.cpuMoveDelay;
+        if (waitMs > 0) {
           await new Promise<void>((resolve) => {
-            const t = setTimeout(resolve, settings.cpuMoveDelay);
+            const t = setTimeout(resolve, waitMs);
             const check = setInterval(() => {
               if (abortRef.current) {
                 clearTimeout(t);
@@ -615,7 +619,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
             }, 100);
             setTimeout(
               () => clearInterval(check),
-              settings.cpuMoveDelay + 50,
+              waitMs + 50,
             );
           });
         }

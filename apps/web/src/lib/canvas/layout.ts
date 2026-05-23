@@ -58,17 +58,25 @@ export const HAND_ORDER: Role[] = [
 const CONTROLS_H = 28;
 const EVAL_H = 30;
 const METER_H = 8;
-const INFO_H = 36;
+const INFO_H_MIN = 36;
 const BTN_H = 28;
 const GAP = 3;
 const BOTTOM_PAD = 6;
-const FIXED = CONTROLS_H + EVAL_H + METER_H + INFO_H + BTN_H + GAP * 7 + BOTTOM_PAD;
+const FIXED_MIN =
+  CONTROLS_H + EVAL_H + METER_H + INFO_H_MIN + BTN_H + GAP * 7 + BOTTOM_PAD;
 
 export function calcLayout(vw: number, vh: number): CanvasLayout {
   const dpr =
     typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  const fromH = Math.floor((vh - FIXED) / 10.3);
   const fromW = Math.floor(vw / 9);
+  const estimate = Math.max(
+    32,
+    Math.min(Math.floor((vh - FIXED_MIN) / 10.3), fromW),
+  );
+  const infoH = Math.max(INFO_H_MIN, Math.floor(estimate * 0.5));
+  const fixed =
+    CONTROLS_H + EVAL_H + METER_H + infoH + BTN_H + GAP * 7 + BOTTOM_PAD;
+  const fromH = Math.floor((vh - fixed) / 10.3);
   const cellSize = Math.max(32, Math.min(fromH, fromW));
 
   const boardPx = cellSize * 9;
@@ -92,8 +100,8 @@ export function calcLayout(vw: number, vh: number): CanvasLayout {
   y += EVAL_H + GAP;
   const timerMeter: Rect = { x: 0, y, w: contentW, h: METER_H };
   y += METER_H + GAP;
-  const infoArea: Rect = { x: 0, y, w: contentW, h: INFO_H };
-  y += INFO_H + GAP;
+  const infoArea: Rect = { x: 0, y, w: contentW, h: infoH };
+  y += infoH + GAP;
   const actionButtons: Rect = { x: 0, y, w: contentW, h: BTN_H };
   y += BTN_H;
 

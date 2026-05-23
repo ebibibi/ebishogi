@@ -866,6 +866,7 @@ function drawInfo(
   }
 
   y += fs + 10;
+  y = Math.min(y, infoArea.y + infoArea.h - sfs / 2 - 2);
 
   const parts = [
     state.turn === "sente" ? "先手" : "後手",

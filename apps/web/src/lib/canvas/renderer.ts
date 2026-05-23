@@ -681,7 +681,9 @@ function drawControls(
   layout: CanvasLayout,
   state: RenderState,
 ) {
-  for (const btn of getControlButtons(layout, state)) drawBtn(ctx, btn);
+  for (const btn of getControlButtons(layout, state)) {
+    if (!btn.hidden) drawBtn(ctx, btn);
+  }
 }
 
 // ── Eval Graph ────────────────────────────────────────

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { GameView } from "@/components/GameView";
 import { LevelSelectScreen } from "@/components/LevelSelectScreen";
-
+import { AdBanner } from "@/components/AdBanner";
+import { AD_SLOTS } from "@/lib/ad-slots";
 import { useSettings } from "@/hooks/useSettings";
 
 type Screen = "home" | "selectLevel" | "playing";
@@ -100,7 +101,10 @@ export default function Home() {
           対局はすべてブラウザ内で処理され、サーバーに情報は送信されません。
         </p>
 
-
+        <AdBanner
+          slot={AD_SLOTS.LANDING_FOOTER}
+          className="w-full mt-4"
+        />
       </div>
     </div>
   );

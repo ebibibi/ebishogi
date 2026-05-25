@@ -1,6 +1,8 @@
 "use client";
 
 import { CPU_LEVELS } from "@/hooks/useSettings";
+import { AdBanner } from "@/components/AdBanner";
+import { AD_SLOTS } from "@/lib/ad-slots";
 
 
 type Props = {
@@ -62,7 +64,10 @@ export function LevelSelectScreen({
           戻る
         </button>
 
-
+        <AdBanner
+          slot={AD_SLOTS.LEVEL_SELECT_FOOTER}
+          className="w-full mt-4"
+        />
       </div>
     </div>
   );

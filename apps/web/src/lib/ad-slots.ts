@@ -1,0 +1,4 @@
+export const AD_SLOTS = {
+  LANDING_FOOTER: "9201696097",
+  LEVEL_SELECT_FOOTER: "9701223695",
+} as const;

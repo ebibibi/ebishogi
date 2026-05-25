@@ -88,12 +88,6 @@ class ShogiEngine {
   }
 
   private async doInit(): Promise<void> {
-    if (typeof SharedArrayBuffer === "undefined") {
-      throw new Error(
-        "SharedArrayBuffer is not available. Please reload the page.",
-      );
-    }
-
     const worker = new Worker("/engine/engine-worker.js");
     this.worker = worker;
 

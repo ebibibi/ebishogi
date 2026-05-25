@@ -13,17 +13,29 @@ self.onmessage = function (e) {
   }
 };
 
-YaneuraOu_K_P({
-  locateFile: function (file) {
-    return "/engine/" + file;
-  },
-  mainScriptUrlOrBlob: "/engine/yaneuraou.k-p.js",
-})
+fetch("/engine/nn.bin")
+  .then(function (res) {
+    return res.arrayBuffer();
+  })
+  .then(function (evalBuf) {
+    return YaneuraOu_K_P({
+      locateFile: function (file) {
+        return "/engine/" + file;
+      },
+      mainScriptUrlOrBlob: "/engine/yaneuraou.k-p.js",
+      preRun: function (mod) {
+        var data = new Uint8Array(evalBuf);
+        mod.FS.writeFile("/nn.bin", data);
+      },
+    });
+  })
   .then(function (mod) {
     engine = mod;
     mod.addMessageListener(function (line) {
       self.postMessage({ type: "engine-output", line: line });
     });
+    mod.postMessage("setoption name EvalDir value .");
+    mod.postMessage("setoption name EvalFile value nn.bin");
     for (var i = 0; i < pending.length; i++) {
       mod.postMessage(pending[i]);
     }

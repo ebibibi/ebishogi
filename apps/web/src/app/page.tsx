@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { GameView } from "@/components/GameView";
 import { LevelSelectScreen } from "@/components/LevelSelectScreen";
-import { AdBanner } from "@/components/AdBanner";
+
 import { useSettings } from "@/hooks/useSettings";
 
 type Screen = "home" | "selectLevel" | "playing";
@@ -100,9 +100,7 @@ export default function Home() {
           対局はすべてブラウザ内で処理され、サーバーに情報は送信されません。
         </p>
 
-        <div className="w-full mt-4">
-          <AdBanner />
-        </div>
+
       </div>
     </div>
   );

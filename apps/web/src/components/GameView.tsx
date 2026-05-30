@@ -116,18 +116,20 @@ export function GameView({ onBack }: { onBack: () => void }) {
     loadPieceImages().then(setImages);
   }, []);
 
+  const wrapRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const handler = () => {
-      const vh =
-        window.visualViewport?.height ?? window.innerHeight;
-      setLayout(calcLayout(window.innerWidth, vh));
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) setLayout(calcLayout(w, h));
     };
-    window.addEventListener("resize", handler);
-    window.visualViewport?.addEventListener("resize", handler);
-    return () => {
-      window.removeEventListener("resize", handler);
-      window.visualViewport?.removeEventListener("resize", handler);
-    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -790,7 +792,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <>
+    <div ref={wrapRef} style={{ width: "100%", height: "100%" }}>
       <canvas
         ref={canvasRef}
         width={layout.canvasW * layout.dpr}
@@ -811,7 +813,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
           onClose={() => setShowSettings(false)}
         />
       )}
-    </>
+    </div>
   );
 }
 

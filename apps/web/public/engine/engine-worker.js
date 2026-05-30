@@ -30,7 +30,9 @@ fetch("/engine/nn.bin")
       mainScriptUrlOrBlob: "/engine/yaneuraou.k-p.js",
       preRun: function (mod) {
         var data = new Uint8Array(evalBuf);
-        mod.FS.writeFile("/nn.bin", data);
+        var stream = mod.FS.open("/nn.bin", "w");
+        mod.FS.write(stream, data, 0, data.byteLength, 0);
+        mod.FS.close(stream);
         console.log("[engine-worker] nn.bin written to FS");
       },
     });

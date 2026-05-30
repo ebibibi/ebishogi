@@ -14,7 +14,19 @@ export default function Home() {
   const { settings, updateSettings } = useSettings();
 
   if (screen === "playing") {
-    return <GameView onBack={() => setScreen("home")} />;
+    return (
+      <div className="flex h-dvh flex-col overflow-hidden bg-black">
+        <div className="min-h-0 flex-1">
+          <GameView onBack={() => setScreen("home")} />
+        </div>
+        <div className="shrink-0 bg-zinc-900">
+          <AdBanner
+            slot={AD_SLOTS.GAME_BOTTOM}
+            className="mx-auto max-w-screen-sm"
+          />
+        </div>
+      </div>
+    );
   }
 
   if (screen === "selectLevel") {

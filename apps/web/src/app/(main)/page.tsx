@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { LevelSelectScreen } from "@/components/LevelSelectScreen";
 import { AdBanner } from "@/components/AdBanner";
 import { AD_SLOTS } from "@/lib/ad-slots";
@@ -12,24 +12,11 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const { settings, updateSettings } = useSettings();
 
-  useEffect(() => {
-    if (screen !== "playing") return;
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === "ebishogi:back") setScreen("home");
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [screen]);
-
   if (screen === "playing") {
-    return (
-      <iframe
-        src="/game"
-        className="w-full border-none"
-        style={{ height: "100dvh" }}
-        allow="autoplay"
-      />
-    );
+    if (typeof window !== "undefined") {
+      window.location.href = "/game";
+    }
+    return null;
   }
 
   if (screen === "selectLevel") {

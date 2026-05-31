@@ -122,6 +122,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
         window.visualViewport?.height ?? window.innerHeight;
       setLayout(calcLayout(window.innerWidth, vh));
     };
+    handler();
     window.addEventListener("resize", handler);
     window.visualViewport?.addEventListener("resize", handler);
     return () => {

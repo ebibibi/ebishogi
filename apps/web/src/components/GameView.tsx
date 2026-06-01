@@ -794,6 +794,7 @@ export function GameView({ onBack }: { onBack: () => void }) {
     <>
       <canvas
         ref={canvasRef}
+        data-testid="game-canvas"
         width={layout.canvasW * layout.dpr}
         height={layout.canvasH * layout.dpr}
         style={{
@@ -803,6 +804,19 @@ export function GameView({ onBack }: { onBack: () => void }) {
           display: "block",
         }}
         onClick={handleCanvasClick}
+      />
+      {/* 盤面はcanvasに描画されDOM・スクリーンリーダーから見えないため、
+          ゲーム状態を非表示DOMにミラーする（アクセシビリティ + E2Eテスト用）。 */}
+      <div
+        data-testid="game-status"
+        data-move-count={game.moveCount}
+        data-turn={game.turn}
+        data-engine={engineReady ? "ready" : "loading"}
+        data-live={isLive ? "1" : "0"}
+        data-end={game.isEnd ? "1" : "0"}
+        data-eval={currentEval ?? ""}
+        style={{ display: "none" }}
+        aria-hidden="true"
       />
       {showSettings && (
         <SettingsPanel

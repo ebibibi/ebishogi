@@ -1,0 +1,18 @@
+{
+  "problems": [
+    { "id": "t3-1", "mateIn": 3, "sfen": "9/1k7/9/2G6/9/9/9/9/9 b GG 1", "firstMove": "G*8c" },
+    { "id": "t3-2", "mateIn": 3, "sfen": "9/8k/9/7+P1/9/9/9/9/9 b SS 1", "firstMove": "S*2c" },
+    { "id": "t3-3", "mateIn": 3, "sfen": "9/1k7/9/+L8/9/9/9/9/9 b GG 1", "firstMove": "G*8c" },
+    { "id": "t3-4", "mateIn": 3, "sfen": "9/7kS/9/9/9/9/9/9/9 b GGS 1", "firstMove": "G*2c" },
+    { "id": "t3-5", "mateIn": 3, "sfen": "9/k8/9/G8/9/9/9/9/9 b SS 1", "firstMove": "S*8c" },
+    { "id": "t3-6", "mateIn": 3, "sfen": "9/k8/2+L6/9/9/9/9/9/9 b GN 1", "firstMove": "G*8c" },
+    { "id": "t3-7", "mateIn": 3, "sfen": "9/5k3/9/4+P4/9/9/9/9/9 b GGS 1", "firstMove": "G*4c" },
+    { "id": "t3-8", "mateIn": 3, "sfen": "6G2/4k4/9/2+S3+S2/9/9/9/9/9 b GG 1", "firstMove": "G*6c" },
+    { "id": "t5-1", "mateIn": 5, "sfen": "9/1k7/3+N5/9/9/9/9/9/9 b GGS 1", "firstMove": "S*7c" },
+    { "id": "t5-2", "mateIn": 5, "sfen": "7k1/5+L3/9/9/9/9/9/9/9 b GGS 1", "firstMove": "S*3b" },
+    { "id": "t5-3", "mateIn": 5, "sfen": "9/9/1k7/9/3+P5/9/9/9/9 b GGS 1", "firstMove": "S*7d" },
+    { "id": "t5-4", "mateIn": 5, "sfen": "1k7/3+L5/9/9/9/9/9/9/9 b GGS 1", "firstMove": "S*7b" },
+    { "id": "t5-5", "mateIn": 5, "sfen": "9/7k1/5+N3/9/9/9/9/9/9 b GGS 1", "firstMove": "S*3c" },
+    { "id": "t5-6", "mateIn": 5, "sfen": "1k1S5/9/9/9/9/9/9/9/9 b GGS 1", "firstMove": "S*7b" }
+  ]
+}

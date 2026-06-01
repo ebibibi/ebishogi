@@ -20,20 +20,23 @@ const mimeTypes = {
 };
 
 async function resolveFile(pathname) {
-  let p = join(root, pathname);
-  try {
-    const s = await stat(p);
-    if (s.isDirectory()) p = join(p, "index.html");
-    await stat(p);
-    return p;
-  } catch {
+  // Next.js の static export は /tsume → tsume.html 形式で出力するため、
+  // 実ファイル → {route}.html → ディレクトリ/index.html の順に解決する。
+  const base = join(root, pathname);
+  const candidates = [base];
+  if (!extname(base)) {
+    candidates.push(base + ".html");
+    candidates.push(join(base, "index.html"));
+  }
+  for (const candidate of candidates) {
     try {
-      await stat(p + ".html");
-      return p + ".html";
+      const s = await stat(candidate);
+      if (s.isFile()) return candidate;
     } catch {
-      return null;
+      /* 次の候補へ */
     }
   }
+  return null;
 }
 
 createServer(async (req, res) => {

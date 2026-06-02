@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { MoveOrDrop } from "shogiops/types";
 import { TsumeBoard } from "./TsumeBoard";
 import {
   problemsByMate,
-  problemIndex,
   MATE_LEVELS,
   type TsumeProblem,
 } from "@/lib/tsume/problems";
@@ -17,34 +16,38 @@ import {
 } from "@/lib/tsume/tsume-game";
 import { buildHints } from "@/lib/tsume/hint";
 
-const SOLVED_KEY = "ebishogi-tsume-solved-v1";
+// 解答回数（id → 解いた回数）。反復練習の可視化に使う。
+const COUNTS_KEY = "ebishogi-tsume-counts-v1";
+const SET_SIZES = [10, 50, 100] as const;
+const YANEURAOU_URL =
+  "https://yaneuraou.yaneu.com/2020/12/25/christmas-present/";
 
 type Message = { text: string; kind: "correct" | "wrong" | "solved" } | null;
 
 export function TsumeView({ onBack }: { onBack: () => void }) {
-  const [mate, setMate] = useState<number>(3);
-  const [problem, setProblem] = useState<TsumeProblem | null>(null);
+  const [mate, setMate] = useState(3);
+  const [setSize, setSetSize] = useState<number>(10);
+  const [setIndex, setSetIndex] = useState<number | null>(null); // null=セット選択画面
+  const [posInSet, setPosInSet] = useState(0);
   const [history, setHistory] = useState<TsumeState[]>([]);
   const [message, setMessage] = useState<Message>(null);
   const [hintLevel, setHintLevel] = useState(0);
-  const [solved, setSolved] = useState<Set<string>>(new Set());
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SOLVED_KEY);
-      if (raw) setSolved(new Set(JSON.parse(raw)));
+      const raw = localStorage.getItem(COUNTS_KEY);
+      if (raw) setCounts(JSON.parse(raw));
     } catch {
       /* localStorage 不可でも続行 */
     }
   }, []);
 
-  const markSolved = useCallback((id: string) => {
-    setSolved((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
+  const recordSolve = useCallback((id: string) => {
+    setCounts((prev) => {
+      const next = { ...prev, [id]: (prev[id] ?? 0) + 1 };
       try {
-        localStorage.setItem(SOLVED_KEY, JSON.stringify([...next]));
+        localStorage.setItem(COUNTS_KEY, JSON.stringify(next));
       } catch {
         /* 保存失敗は無視 */
       }
@@ -52,12 +55,26 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
     });
   }, []);
 
-  const openProblem = useCallback((p: TsumeProblem) => {
-    setProblem(p);
-    setHistory([startProblem(p)]);
-    setMessage(null);
-    setHintLevel(0);
-  }, []);
+  const mateProblems = useMemo(() => problemsByMate(mate), [mate]);
+  const setTotal = Math.max(1, Math.ceil(mateProblems.length / setSize));
+  const currentSet = useMemo(
+    () =>
+      setIndex === null
+        ? []
+        : mateProblems.slice(setIndex * setSize, setIndex * setSize + setSize),
+    [mateProblems, setIndex, setSize],
+  );
+  const problem = currentSet[posInSet] ?? null;
+
+  // 問題が変わったら盤面を初期化する
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (problem) {
+      setHistory([startProblem(problem)]);
+      setMessage(null);
+      setHintLevel(0);
+    }
+  }, [problem?.id]);
 
   const state = history[history.length - 1] ?? null;
 
@@ -73,22 +90,34 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
       setHintLevel(0);
       if (outcome.type === "solved") {
         setMessage({ text: "正解！詰みました 🎉", kind: "solved" });
-        markSolved(outcome.state.problem.id);
+        recordSolve(outcome.state.problem.id);
       } else {
         setMessage({ text: "正解！ いい手です", kind: "correct" });
       }
     },
-    [state, markSolved],
+    [state, recordSolve],
   );
 
-  // ── 問題一覧画面 ──────────────────────────────────────
-  if (!problem || !state) {
-    const list = problemsByMate(mate);
+  const openSet = useCallback((idx: number) => {
+    setSetIndex(idx);
+    setPosInSet(0);
+  }, []);
+
+  // ── セット選択画面 ─────────────────────────────────────
+  if (setIndex === null) {
+    const solvedInMate = mateProblems.filter(
+      (p) => (counts[p.id] ?? 0) > 0,
+    ).length;
+    const totalReps = mateProblems.reduce(
+      (s, p) => s + (counts[p.id] ?? 0),
+      0,
+    );
+
     return (
       <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center p-6">
-        <div className="max-w-md w-full flex flex-col gap-6">
+        <div className="max-w-md w-full flex flex-col gap-5">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">詰将棋</h1>
+            <h1 className="text-2xl font-bold">実践詰将棋</h1>
             <button
               onClick={onBack}
               className="text-sm text-zinc-400 hover:text-white"
@@ -99,10 +128,12 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
           </div>
 
           <p className="text-sm text-zinc-400 leading-relaxed">
-            先手（あなた）が攻め方です。連続王手で相手玉を詰ませましょう。
-            行き詰まったら「ヒント」を押すと段階的に教えてくれます。
+            先手（あなた）が攻め方。連続王手で相手玉を詰ませましょう。実戦から生まれた
+            詰将棋なので<strong>駒余りもあり</strong>ます。同じセットを繰り返し解いて
+            棋力アップ！解いた回数は自動で記録されます。
           </p>
 
+          {/* 手数タブ */}
           <div className="flex gap-2">
             {MATE_LEVELS.map((m) => (
               <button
@@ -120,46 +151,103 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
             ))}
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
-            {list.map((p, i) => {
-              const done = solved.has(p.id);
+          {/* セットサイズ */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-zinc-400">1セット</span>
+            {SET_SIZES.map((sz) => (
+              <button
+                key={sz}
+                onClick={() => setSetSize(sz)}
+                className={`flex-1 py-1.5 rounded-lg font-bold transition-colors ${
+                  setSize === sz
+                    ? "bg-sky-600 text-white"
+                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                }`}
+                type="button"
+              >
+                {sz}問
+              </button>
+            ))}
+          </div>
+
+          <p className="text-xs text-zinc-500">
+            {mate}手詰め 全{mateProblems.length}問 ・ {solvedInMate}問 着手済み ・
+            のべ{totalReps}回 解答
+          </p>
+
+          {/* セット一覧 */}
+          <div className="grid grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto pr-1">
+            {Array.from({ length: setTotal }, (_, i) => {
+              const set = mateProblems.slice(
+                i * setSize,
+                i * setSize + setSize,
+              );
+              const done = set.filter((p) => (counts[p.id] ?? 0) > 0).length;
+              const complete = done === set.length && set.length > 0;
+              const from = i * setSize + 1;
+              const to = i * setSize + set.length;
               return (
                 <button
-                  key={p.id}
-                  onClick={() => openProblem(p)}
-                  className={`aspect-square rounded-xl flex flex-col items-center justify-center font-bold text-lg transition-colors ${
-                    done
+                  key={i}
+                  onClick={() => openSet(i)}
+                  className={`rounded-xl p-2 flex flex-col items-center gap-0.5 font-bold transition-colors ${
+                    complete
                       ? "bg-emerald-700/80 hover:bg-emerald-600 text-white"
-                      : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                      : done > 0
+                        ? "bg-zinc-700 hover:bg-zinc-600 text-zinc-100"
+                        : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
                   }`}
                   type="button"
                 >
-                  {i + 1}
-                  {done && <span className="text-xs mt-0.5">クリア</span>}
+                  <span className="text-sm">
+                    {from}–{to}
+                  </span>
+                  <span className="text-[11px] font-normal text-zinc-300">
+                    {done}/{set.length}
+                    {complete && " ✓"}
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          <p className="text-xs text-zinc-500 text-center">
-            {mate}手詰め {list.filter((p) => solved.has(p.id)).length}/
-            {list.length} 問クリア
+          {/* クレジット */}
+          <p className="text-xs text-zinc-500 text-center leading-relaxed border-t border-zinc-800 pt-3">
+            問題は{" "}
+            <a
+              href={YANEURAOU_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-400 hover:text-amber-300 underline"
+            >
+              やねうらお氏が公開した詰将棋500万問
+            </a>{" "}
+            （パブリックドメイン）より。
+            <br />
+            素晴らしいデータの公開に感謝します 🙏
           </p>
         </div>
       </div>
     );
   }
 
-  // ── 出題・プレイ画面 ──────────────────────────────────
+  // 準備中（problem 初期化待ちの一瞬）
+  if (!problem || !state) {
+    return (
+      <div className="min-h-screen bg-zinc-900 text-white flex items-center justify-center">
+        <span className="text-zinc-500">読み込み中…</span>
+      </div>
+    );
+  }
+
+  // ── 出題・プレイ画面 ───────────────────────────────────
   const hints = buildHints(state);
   const remaining = remainingMate(state);
-  const idx = problemIndex(problem);
   const isSolved = state.status === "solved";
   const canUndo = history.length > 1 && !isSolved;
-
-  const arr = problemsByMate(problem.mateIn);
-  const pos = arr.findIndex((p) => p.id === problem.id);
-  const nextProblem = pos >= 0 && pos < arr.length - 1 ? arr[pos + 1] : null;
+  const reps = counts[problem.id] ?? 0;
+  const isLastInSet = posInSet >= currentSet.length - 1;
+  const globalNo = setIndex * setSize + posInSet + 1;
 
   const messageColor =
     message?.kind === "solved"
@@ -172,14 +260,18 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center p-4 gap-3">
       <div className="w-full max-w-[460px] flex items-center justify-between">
         <button
-          onClick={() => setProblem(null)}
+          onClick={() => setSetIndex(null)}
           className="text-sm text-zinc-400 hover:text-white"
           type="button"
         >
-          ← 一覧へ
+          ← セット
         </button>
-        <span className="font-bold">
-          {problem.mateIn}手詰め 第{idx}問
+        <span className="font-bold text-sm">
+          {problem.mateIn}手詰め 第{globalNo}問
+          <span className="text-zinc-400 font-normal">
+            {" "}
+            （{posInSet + 1}/{currentSet.length}）
+          </span>
         </span>
         <span className="text-sm text-zinc-400">
           {isSolved ? "クリア！" : `残り${remaining}手`}
@@ -197,11 +289,15 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
         data-testid="tsume-status"
         data-solved={isSolved ? "1" : "0"}
         data-remaining={remaining}
+        data-reps={reps}
         style={{ display: "none" }}
         aria-hidden="true"
       />
 
-      <div className="w-full max-w-[460px] min-h-[2.5rem] flex items-center justify-center">
+      <div className="w-full max-w-[460px] flex items-center justify-between min-h-[2.5rem]">
+        <span className="text-xs text-zinc-500">
+          {reps > 0 ? `この問題 ${reps}回クリア` : "初挑戦"}
+        </span>
         {message && (
           <div
             className={`px-4 py-1.5 rounded-full text-sm font-bold ${messageColor}`}
@@ -209,6 +305,7 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
             {message.text}
           </div>
         )}
+        <span className="w-16" />
       </div>
 
       {hintLevel > 0 && hints && !isSolved && (
@@ -248,34 +345,45 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
             1手戻る
           </button>
         )}
-        <button
-          onClick={() => {
-            setHistory([startProblem(problem)]);
-            setMessage(null);
-            setHintLevel(0);
-          }}
-          className="py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
-          type="button"
-        >
-          最初から
-        </button>
-        {isSolved && nextProblem && (
+        {!isSolved && (
           <button
-            onClick={() => openProblem(nextProblem)}
-            className="py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors col-span-1"
+            onClick={() => {
+              setHistory([startProblem(problem)]);
+              setMessage(null);
+              setHintLevel(0);
+            }}
+            className="py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
+            type="button"
+          >
+            最初から
+          </button>
+        )}
+        {isSolved && !isLastInSet && (
+          <button
+            onClick={() => setPosInSet((p) => p + 1)}
+            className="py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors col-span-2"
             type="button"
           >
             次の問題 →
           </button>
         )}
-        {isSolved && !nextProblem && (
-          <button
-            onClick={() => setProblem(null)}
-            className="py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors"
-            type="button"
-          >
-            一覧へ戻る
-          </button>
+        {isSolved && isLastInSet && (
+          <>
+            <button
+              onClick={() => setPosInSet(0)}
+              className="py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors"
+              type="button"
+            >
+              もう一周 ↻
+            </button>
+            <button
+              onClick={() => setSetIndex(null)}
+              className="py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
+              type="button"
+            >
+              セット一覧へ
+            </button>
+          </>
         )}
       </div>
     </div>

@@ -104,7 +104,7 @@ export default function Home() {
           className="w-full py-3.5 text-base font-bold bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-800 rounded-xl transition-colors"
           type="button"
         >
-          詰将棋に挑戦（3手・5手）
+実践詰将棋に挑戦（3手・5手）
         </button>
 
         <p className="text-xs text-zinc-500 text-center">

@@ -1,23 +1,20 @@
 /**
- * 詰将棋問題集ビルドスクリプト（ワンショット生成・本番バンドルには含めない）
+ * 実践詰将棋の問題集ビルドスクリプト（ワンショット生成・本番バンドルには含めない）
  *
- * やねうら王が2020年に公開した詰将棋500万問（パブリックドメイン, SFEN）
+ * やねうら王が公開した詰将棋500万問（パブリックドメイン・SFEN形式）
  *   https://yaneuraou.yaneu.com/2020/12/25/christmas-present/
- * から、ebishogi の作法に合う良問だけを厳選して problems.json を生成する。
+ * から、3/5/7手詰を手数順に各 WANT 問取り込む。実戦由来なので「駒余りOK」。
  *
- * 選定条件:
- *   1. 手番が先手(b) = 攻め方が先手（problems.ts の前提に合致、先後反転が不要）
- *   2. 攻め方の初期持ち駒が少ない（軽量プレフィルタ。実戦的すぎる局面を除外）
- *   3. 初形で王手がかかっていない（詰将棋の作法）
- *   4. ちょうど mateIn 手で詰む & 初手が一意（= 余詰めなし）
- *   5. 詰め上がりで攻め方の持ち駒がゼロ（= 「持ち駒余り」の排除。作法）
- *   6. 初手パターンの多様性（同一パターンの偏りを抑える）
+ * ★設計の要：正解手順(moves)を生成時に事前計算してデータに持たせる。
+ *   実戦型は持ち駒が多く分岐が爆発し、ブラウザ内ソルバーでは5手1.5秒/7手4秒と
+ *   重すぎる。そこで生成時に1本の正解手順（攻め＋受けの全手USI）を求めておき、
+ *   実行時は「指し手が手順と一致するか」の照合だけにする（solver不要・即時）。
+ *   重すぎる局面は探索ノード上限で打ち切ってスキップ（生成時間を制御）。
  *
- * solver.ts / shogi-game.ts は @/ エイリアスを使い tsx から直接 import できない
- * ため、ここでは shogiops を直接使う自己完結版を持つ（探索ロジックは solver.ts
- * と同一。生成物は本番 solver の E2E/検証で担保する）。
+ * solver.ts / shogi-game.ts は @/ エイリアスのため tsx から import できないので、
+ * shogiops を直接使う自己完結版を持つ（探索ロジックは solver.ts と同一）。
  *
- * 実行: cd apps/web && npx tsx scripts/build-tsume-problems.mts
+ * 実行: cd apps/web && ./node_modules/.bin/tsx scripts/build-tsume-problems.mts [WANT]
  */
 import { Shogi } from "shogiops/variant/shogi";
 import { parseSfen } from "shogiops/sfen";
@@ -38,8 +35,19 @@ const OUT = join(
   dirname(fileURLToPath(import.meta.url)),
   "../src/lib/tsume/problems.json",
 );
+const WANT = Number(process.argv.find((a) => /^\d+$/.test(a))) || 1000;
+// 手数別の取り込み設定:
+//   maxHand   = 攻め方の初期持ち駒の上限（駒余りOKだが極端な多さは探索が重いので除外）
+//   scanLimit = 走査する行数の上限
+//   nodeLimit = 1問の手順探索で展開してよい局面数の上限（超えたら重すぎる局面として捨てる）
+const SETTINGS = [
+  { mateIn: 3, maxHand: 8, scanLimit: 300_000, nodeLimit: 30_000 },
+  { mateIn: 5, maxHand: 7, scanLimit: 800_000, nodeLimit: 80_000 },
+  { mateIn: 7, maxHand: 5, scanLimit: 400_000, nodeLimit: 12_000 },
+];
+let CUR_LIMIT = 100_000;
 
-// ── shogi-game.ts からの移植（shogiops 薄ラッパー）──
+// ── shogi-game.ts からの移植 ──
 const PROMOTABLE: ReadonlySet<Role> = new Set<Role>([
   "pawn", "lance", "knight", "silver", "bishop", "rook",
 ]);
@@ -73,7 +81,9 @@ function handPieces(pos: Shogi, color: Color): Map<Role, number> {
   return result;
 }
 
-// ── solver.ts からの移植（AND/OR 詰み探索）──
+// ── solver.ts からの移植（探索ノードを数えて上限で打ち切る）──
+class Aborted extends Error {}
+let NODES = 0;
 function positionFromSfen(sfen: string): Shogi | null {
   const r = parseSfen("standard", sfen);
   return r.isErr ? null : (r.value as Shogi);
@@ -99,6 +109,7 @@ function* legalMoves(pos: Shogi): Generator<MoveOrDrop> {
   }
 }
 function applied(pos: Shogi, move: MoveOrDrop): Shogi {
+  if (++NODES > CUR_LIMIT) throw new Aborted();
   const next = pos.clone() as Shogi;
   next.play(move);
   return next;
@@ -112,10 +123,7 @@ function attackerShortestMate(pos: Shogi, depth: number): number {
     if (!next.hasDests()) return 1;
     if (depth >= 3) {
       const reply = defenderLongestMate(next, depth - 1);
-      if (reply >= 0) {
-        const total = reply + 1;
-        if (best < 0 || total < best) best = total;
-      }
+      if (reply >= 0) { const total = reply + 1; if (best < 0 || total < best) best = total; }
     }
   }
   return best;
@@ -138,9 +146,7 @@ function findMatingMoves(pos: Shogi, depth: number): string[] {
     const next = applied(pos, move);
     if (!next.isCheck()) continue;
     if (!next.hasDests()) { result.push(makeUsi(move)); continue; }
-    if (depth >= 3 && defenderLongestMate(next, depth - 1) >= 0) {
-      result.push(makeUsi(move));
-    }
+    if (depth >= 3 && defenderLongestMate(next, depth - 1) >= 0) result.push(makeUsi(move));
   }
   return result;
 }
@@ -149,16 +155,15 @@ function chooseDefense(pos: Shogi, depth: number): MoveOrDrop | null {
   for (const move of legalMoves(pos)) {
     const next = applied(pos, move);
     const mate = attackerShortestMate(next, depth - 1);
-    if (mate < 0) return move; // 逃れがある=出題ミス
+    if (mate < 0) return move; // 逃れ → 出題ミス
     if (mate > bestLen) { bestLen = mate; best = move; }
   }
   return best;
 }
 
 // ── フィルタ本体 ──
-type Problem = { id: string; mateIn: number; sfen: string; firstMove: string };
+type Problem = { id: string; mateIn: number; sfen: string; moves: string[] };
 
-/** SFEN 持ち駒文字列のうち先手（大文字）の枚数を数える。'-' は 0。 */
 function senteHandCount(h: string): number {
   if (h === "-") return 0;
   let total = 0, num = "";
@@ -171,74 +176,64 @@ function senteHandCount(h: string): number {
   return total;
 }
 
-/** 初形が「攻め方先手・初形王手なし・ちょうど mateIn 手・初手一意」か。 */
-function verify(sfen: string, mateIn: number): string | null {
-  const pos = positionFromSfen(sfen);
-  if (!pos || pos.turn !== "sente" || pos.isCheck()) return null;
-  if (attackerShortestMate(pos, mateIn) !== mateIn) return null;
-  const firsts = findMatingMoves(pos, mateIn);
-  return firsts.length === 1 ? firsts[0] : null; // 初手一意のみ
-}
-
-/** 正解手順を再生し、詰め上がりで攻め方の持ち駒がゼロなら true。 */
-function handEmptyAtMate(sfen: string, mateIn: number): boolean {
-  let pos = positionFromSfen(sfen);
-  if (!pos) return false;
-  const attacker = pos.turn; // sente
-  let depth = mateIn;
-  for (let guard = 0; guard < 20; guard++) {
-    const firsts = findMatingMoves(pos, depth);
-    if (firsts.length === 0) return false;
-    const attack = parseUsi(firsts[0]);
-    if (!attack) return false;
-    pos = applied(pos, attack);
-    if (isMated(pos)) break;
-    const def = chooseDefense(pos, depth - 1);
-    if (!def) return false;
-    pos = applied(pos, def);
-    depth -= 2;
+/**
+ * ちょうど mateIn 手で詰む 1 本の正解手順(攻め＋受けの全手USI)を返す。
+ * 詰まない・出題ミス・探索が重すぎる(NODE_LIMIT超過)場合は null。
+ */
+function solveLine(sfen: string, mateIn: number): string[] | null {
+  const pos0 = positionFromSfen(sfen);
+  if (!pos0 || pos0.turn !== "sente" || pos0.isCheck()) return null;
+  NODES = 0;
+  try {
+    let pos = pos0;
+    let depth = mateIn;
+    const moves: string[] = [];
+    for (let step = 0; step < mateIn; step++) {
+      const firsts = findMatingMoves(pos, depth);
+      if (firsts.length === 0) return null;
+      const attack = firsts[0];
+      const am = parseUsi(attack);
+      if (!am) return null;
+      moves.push(attack);
+      pos = applied(pos, am);
+      if (isMated(pos)) return moves; // 詰み上がり
+      const def = chooseDefense(pos, depth - 1);
+      if (!def) return null;
+      moves.push(makeUsi(def));
+      pos = applied(pos, def);
+      depth -= 2;
+    }
+    return null; // mateIn 手で詰みきらなかった（最短不一致）
+  } catch (e) {
+    if (e instanceof Aborted) return null;
+    throw e;
   }
-  return handPieces(pos, attacker).size === 0;
 }
 
-/** 初手 USI から多様性キー（駒種・打/移動・段）を作る。数字の一部を残す。 */
-function firstKey(usi: string): string {
-  // 例 "G*8c" -> "G*c"（金打・3段目）, "7g7f" -> "gf"（移動の段）
-  return usi.replace(/[0-9]/g, "");
-}
-
-async function build(
-  path: string,
-  mateIn: number,
-  want: number,
-  maxHand: number,
-  scanLimit: number,
-): Promise<Problem[]> {
+async function build(mateIn: number, maxHand: number, scanLimit: number, nodeLimit: number): Promise<Problem[]> {
+  CUR_LIMIT = nodeLimit;
   const out: Problem[] = [];
-  const keyCount = new Map<string, number>();
-  const keyCap = Math.ceil(want / 5); // 同一パターンは全体の 1/5 まで
   const rl = createInterface({
-    input: createReadStream(path),
+    input: createReadStream(`${WORK}/mate${mateIn}.sfen`),
     crlfDelay: Infinity,
   });
-  let scanned = 0;
+  let scanned = 0, aborted = 0;
   for await (const line of rl) {
-    if (out.length >= want || scanned >= scanLimit) break;
+    if (out.length >= WANT || scanned >= scanLimit) break;
     scanned++;
     const parts = line.split(" ");
     if (parts.length < 3 || parts[1] !== "b") continue;
     if (senteHandCount(parts[2]) > maxHand) continue;
     const sfen = `${parts[0]} b ${parts[2]} 1`;
-    const first = verify(sfen, mateIn);
-    if (!first) continue;
-    if (!handEmptyAtMate(sfen, mateIn)) continue;
-    const key = firstKey(first);
-    if ((keyCount.get(key) ?? 0) >= keyCap) continue;
-    keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
-    out.push({ id: `t${mateIn}-${out.length + 1}`, mateIn, sfen, firstMove: first });
+    const moves = solveLine(sfen, mateIn);
+    if (!moves || moves.length !== mateIn) {
+      if (moves === null) aborted++;
+      continue;
+    }
+    out.push({ id: `t${mateIn}-${out.length + 1}`, mateIn, sfen, moves });
   }
   rl.close();
-  console.error(`  mate${mateIn}: scanned=${scanned} selected=${out.length}`);
+  console.error(`  mate${mateIn}: scanned=${scanned} selected=${out.length} (skip/abort=${aborted})`);
   return out;
 }
 
@@ -247,104 +242,93 @@ function formatJson(problems: Problem[]): string {
   return `{\n  "problems": [\n${lines.join(",\n")}\n  ]\n}\n`;
 }
 
-// ── 実行 ──
-// --fixture-only: 既存 problems.json を読んでフィクスチャだけ再生成する
-// （重い mate5 スキャンを省く。problems.json を作り直すときは引数なしで実行）
-let p3: Problem[];
-if (process.argv.includes("--fixture-only")) {
-  const data = JSON.parse(readFileSync(OUT, "utf8")).problems as Problem[];
-  p3 = data.filter((p) => p.mateIn === 3);
-  console.error(`既存 problems.json を読込: 3手=${p3.length}問`);
-} else {
-  console.error("詰将棋を厳選中（やねうら王500万問 → 良問抽出）...");
-  p3 = await build(`${WORK}/mate3.sfen`, 3, 30, 2, 300_000);
-  const p5 = await build(`${WORK}/mate5.sfen`, 5, 30, 3, 600_000);
-  const all = [...p3, ...p5];
-  writeFileSync(OUT, formatJson(all));
-  console.error(`完了: 3手=${p3.length} 5手=${p5.length} 計=${all.length} → ${OUT}`);
-}
-
-// ── E2E テスト用フィクスチャ ────────────────────────────────
-// 成りを含まない手順の3手詰を1問選び、攻め方の各手を
-// TsumeBoard と同じレイアウト（viewport 1280x720 → vw=460,vh=460.8,cell=44）
-// のクリック座標列に変換して出力する。problems.json を再生成すると
-// フィクスチャも更新されるので、tsume.spec.ts は内容非依存で保てる。
+// E2E用フィクスチャ: 3手詰の先頭問題(成りなし手順)の攻め手をクリック座標列にする。
 const DROP_ROLE: Record<string, Role> = {
   R: "rook", B: "bishop", G: "gold", S: "silver",
   N: "knight", L: "lance", P: "pawn",
 };
-const LAYOUT = calcTsumeLayout(460, 720 * 0.64);
-
-function squareToClick(file: number, rank: number) {
-  const p = fileRankToXY(file, rank, LAYOUT.board, LAYOUT.cell);
-  return {
-    x: Math.round(p.x + LAYOUT.cell / 2),
-    y: Math.round(p.y + LAYOUT.cell / 2),
+function writeFixture(p3: Problem[]): void {
+  const L = calcTsumeLayout(460, 720 * 0.64); // TsumeBoard と同じ vw/vh（cell=44）
+  const sqClick = (file: number, rank: number) => {
+    const pt = fileRankToXY(file, rank, L.board, L.cell);
+    return { x: Math.round(pt.x + L.cell / 2), y: Math.round(pt.y + L.cell / 2) };
   };
-}
-function handToClick(pos: Shogi, role: Role) {
-  const slots = handSlotPositions(
-    LAYOUT.bottomHand, handPieces(pos, "sente"), LAYOUT.handPieceSize, true,
-  );
-  const slot = slots.find((s) => s.role === role);
-  if (!slot) return null;
-  return {
-    x: Math.round(slot.x + slot.w / 2),
-    y: Math.round(LAYOUT.bottomHand.y + LAYOUT.bottomHand.h / 2),
-  };
-}
-// USI のマス表記 "6e" → { file:6, rank:5 }（段 a=1 … i=9）
-function usiSquare(tok: string) {
-  return { file: Number(tok[0]), rank: tok.charCodeAt(1) - 96 };
-}
-
-/** 攻め方の各手を順にクリック座標へ。成りを含む手順は null（座標が複雑なため不採用）。 */
-function tracedClicks(sfen: string, mateIn: number): { x: number; y: number }[] | null {
-  let pos = positionFromSfen(sfen);
-  if (!pos) return null;
-  let depth = mateIn;
+  const usiSq = (tok: string) => ({ file: Number(tok[0]), rank: tok.charCodeAt(1) - 96 });
+  NODES = 0;
+  CUR_LIMIT = Number.MAX_SAFE_INTEGER;
+  const target = p3.find((p) => !p.moves.some((m) => m.includes("+")));
+  if (!target) { console.error("warning: 成りなし3手詰が無くフィクスチャ未生成"); return; }
+  let cur = positionFromSfen(target.sfen);
+  if (!cur) return;
   const clicks: { x: number; y: number }[] = [];
-  for (let guard = 0; guard < 20; guard++) {
-    const firsts = findMatingMoves(pos, depth);
-    if (firsts.length !== 1) return null;
-    const usi = firsts[0];
-    if (usi.includes("+")) return null; // 成り手は除外
+  for (let k = 0; k < target.moves.length; k += 2) {
+    const usi = target.moves[k]; // 攻め手
     if (usi.includes("*")) {
-      const drop = handToClick(pos, DROP_ROLE[usi[0]]);
-      const sq = usiSquare(usi.slice(2));
-      if (!drop) return null;
-      clicks.push(drop, squareToClick(sq.file, sq.rank));
+      const slots = handSlotPositions(L.bottomHand, handPieces(cur, "sente"), L.handPieceSize, true);
+      const slot = slots.find((s) => s.role === DROP_ROLE[usi[0]]);
+      if (!slot) return;
+      const t = usiSq(usi.slice(2));
+      clicks.push({ x: Math.round(slot.x + slot.w / 2), y: Math.round(L.bottomHand.y + L.bottomHand.h / 2) });
+      clicks.push(sqClick(t.file, t.rank));
     } else {
-      const from = usiSquare(usi.slice(0, 2));
-      const to = usiSquare(usi.slice(2, 4));
-      clicks.push(squareToClick(from.file, from.rank), squareToClick(to.file, to.rank));
+      const f = usiSq(usi.slice(0, 2)), t = usiSq(usi.slice(2, 4));
+      clicks.push(sqClick(f.file, f.rank), sqClick(t.file, t.rank));
     }
-    const mv = parseUsi(usi);
-    if (!mv) return null;
-    pos = applied(pos, mv);
-    if (isMated(pos)) break;
-    const def = chooseDefense(pos, depth - 1);
-    if (!def) return null;
-    pos = applied(pos, def);
-    depth -= 2;
+    const am = parseUsi(target.moves[k]); if (!am) return;
+    cur = applied(cur, am);
+    const du = target.moves[k + 1];
+    if (du) { const dm = parseUsi(du); if (dm) cur = applied(cur, dm); }
   }
-  return clicks;
+  const fx = { mateIn: 3, setSize: 10, problemId: target.id, clicks };
+  const fxPath = join(dirname(fileURLToPath(import.meta.url)), "../../../e2e/tsume-fixture.json");
+  writeFileSync(fxPath, JSON.stringify(fx, null, 2) + "\n");
+  console.error(`fixture: ${target.id} clicks=${clicks.length}`);
 }
 
-let fixture: unknown = null;
-for (let i = 0; i < p3.length; i++) {
-  const clicks = tracedClicks(p3[i].sfen, 3);
-  if (clicks) {
-    fixture = { mateIn: 3, problemNumber: i + 1, sfen: p3[i].sfen, clicks };
-    break;
+/** 各手数の先頭を「成りなし手順」の問題にして id を振り直す（先頭問題の見栄え＆フィクスチャ用）。 */
+function reorder(data: Problem[]): Problem[] {
+  const byMate = new Map<number, Problem[]>();
+  for (const p of data) {
+    if (!byMate.has(p.mateIn)) byMate.set(p.mateIn, []);
+    byMate.get(p.mateIn)!.push(p);
   }
+  const out: Problem[] = [];
+  for (const [mateIn, list] of [...byMate.entries()].sort((a, b) => a[0] - b[0])) {
+    const swap = list.findIndex((p) => !p.moves.some((m) => m.includes("+")));
+    if (swap > 0) { const t = list[swap]; list.splice(swap, 1); list.unshift(t); }
+    list.forEach((p, i) => { p.id = `t${mateIn}-${i + 1}`; });
+    out.push(...list);
+  }
+  return out;
 }
-if (fixture) {
-  const fxPath = join(
-    dirname(fileURLToPath(import.meta.url)), "../../../e2e/tsume-fixture.json",
-  );
-  writeFileSync(fxPath, JSON.stringify(fixture, null, 2) + "\n");
-  console.error(`fixture: ${JSON.stringify(fixture).slice(0, 80)}… → ${fxPath}`);
+
+if (process.argv.includes("--fixture-only")) {
+  // 重い再生成をせず、生成済み problems.json を整形してフィクスチャだけ作る
+  const data = JSON.parse(readFileSync(OUT, "utf8")).problems as Problem[];
+  const reordered = reorder(data);
+  writeFileSync(OUT, formatJson(reordered));
+  writeFixture(reordered.filter((p) => p.mateIn === 3));
+  console.error(`整形+フィクスチャ完了: 計=${reordered.length}`);
+} else if (process.argv.includes("--append-mate7")) {
+  // 既存(3/5手)を保ったまま、7手だけ超軽量設定で取れるだけ追記する
+  const existing = JSON.parse(readFileSync(OUT, "utf8")).problems as Problem[];
+  const base = existing.filter((p) => p.mateIn !== 7);
+  const m7 = await build(7, 4, 150_000, 8_000);
+  const merged = reorder([...base, ...m7]);
+  writeFileSync(OUT, formatJson(merged));
+  writeFixture(merged.filter((p) => p.mateIn === 3));
+  console.error(`mate7追加: ${m7.length}問 → 計${merged.length}`);
 } else {
-  console.error("warning: フィクスチャに使える成りなし3手詰が見つからない");
+  console.error(`実践詰将棋を生成中（やねうら王500万問 → 各手数${WANT}問・正解手順付き）...`);
+  const all: Problem[] = [];
+  for (const s of SETTINGS) {
+    all.push(...(await build(s.mateIn, s.maxHand, s.scanLimit, s.nodeLimit)));
+    writeFileSync(OUT, formatJson(reorder(all))); // 手数ごとに途中保存（重い手数で詰んでも前の成果を守る）
+    console.error(`  → 途中保存（計${all.length}問）`);
+  }
+  const reordered = reorder(all);
+  writeFileSync(OUT, formatJson(reordered));
+  const counts = SETTINGS.map((s) => `${s.mateIn}手=${reordered.filter((p) => p.mateIn === s.mateIn).length}`).join(" ");
+  console.error(`完了: ${counts} 計=${reordered.length} → ${OUT}`);
+  writeFixture(reordered.filter((p) => p.mateIn === 3));
 }

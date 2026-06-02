@@ -192,6 +192,14 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
         interactive={state.status === "playing"}
         onMove={onMove}
       />
+      {/* 盤面はcanvas描画でDOMに状態が出ないため、E2E検証用に状態をミラーする。 */}
+      <div
+        data-testid="tsume-status"
+        data-solved={isSolved ? "1" : "0"}
+        data-remaining={remaining}
+        style={{ display: "none" }}
+        aria-hidden="true"
+      />
 
       <div className="w-full max-w-[460px] min-h-[2.5rem] flex items-center justify-center">
         {message && (

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import fixture from "./tsume-fixture.json";
 
 test.describe("詰将棋モード", () => {
   test("詰将棋ページが表示される", async ({ page }) => {
@@ -45,24 +46,32 @@ test.describe("詰将棋モード", () => {
     await expect(page.getByText(/残り5手/)).toBeVisible();
   });
 
-  test("駒を動かして3手詰めをクリアできる", async ({ page }) => {
-    // viewport を固定すると calcTsumeLayout が cell=44px を返すため、
-    // 各マス・持ち駒スロットのキャンバス座標を逆算できる。
+  test("詰将棋を解いてクリアできる", async ({ page }) => {
+    // フィクスチャ(e2e/tsume-fixture.json)は scripts/build-tsume-problems.mts が
+    // problems.json から生成する。攻め方の正解手のクリック座標を持つ。
+    // viewport 1280x720 では TsumeBoard が cell=44 のレイアウトを使うため、
+    // フィクスチャの座標がそのまま盤面のマス・持ち駒に対応する。
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto("/tsume");
-    await page.getByRole("button", { name: "1", exact: true }).click();
+    await page.getByRole("button", { name: `${fixture.mateIn}手詰め` }).click();
+    await page
+      .getByRole("button", { name: String(fixture.problemNumber), exact: true })
+      .click();
+
     const canvas = page.locator("canvas");
     await expect(canvas).toBeVisible();
+    const status = page.getByTestId("tsume-status");
+    await expect(status).toHaveAttribute(
+      "data-remaining",
+      String(fixture.mateIn),
+    );
 
-    // 初手 ８三金打: 持ち駒の金 → 8三
-    await canvas.click({ position: { x: 24, y: 456 } });
-    await canvas.click({ position: { x: 66, y: 148 } });
-    await expect(page.getByText(/いい手です/)).toBeVisible();
+    // 攻め方の正解手を順にクリック（受け方の応手は自動で指される）
+    for (const c of fixture.clicks) {
+      await canvas.click({ position: { x: c.x, y: c.y } });
+    }
 
-    // 受け方の応手は自動。詰め上げの ７二金打: 持ち駒の金 → 7二
-    await canvas.click({ position: { x: 24, y: 456 } });
-    await canvas.click({ position: { x: 110, y: 104 } });
+    await expect(status).toHaveAttribute("data-solved", "1");
     await expect(page.getByText(/詰みました/)).toBeVisible();
-    await expect(page.getByText(/クリア！/)).toBeVisible();
   });
 });

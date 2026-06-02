@@ -1,7 +1,12 @@
 /**
  * 詰将棋の問題集。SFEN と詰み手数のみを保持し、正解手順・受け方の応手・
- * ヒントはすべて solver が現局面から導出する。全問が生成時に
- * 「ちょうど mateIn 手・初手一意・無駄駒なし」で検証済み。
+ * ヒントはすべて solver が現局面から導出する。
+ *
+ * 出典: やねうら王が公開した詰将棋500万問（パブリックドメイン・SFEN形式）
+ *   https://yaneuraou.yaneu.com/2020/12/25/christmas-present/
+ * から、「最短 mateIn 手・初手一意（余詰めなし）・詰め上がりで攻め方の持ち駒が
+ * 余らない・初手パターンの多様性」を満たす良問を厳選した。
+ * 抽出スクリプトは scripts/build-tsume-problems.mts。
  */
 import data from "./problems.json";
 

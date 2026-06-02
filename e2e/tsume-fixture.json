@@ -1,0 +1,23 @@
+{
+  "mateIn": 3,
+  "problemNumber": 1,
+  "sfen": "l3+R1+N1l/4g4/p2pk1+S1p/1pp1+b1pp1/2l6/2r1N1P2/PP1PPP2P/2G1GS3/2SK4L b GNbsn4p 1",
+  "clicks": [
+    {
+      "x": 58,
+      "y": 456
+    },
+    {
+      "x": 154,
+      "y": 236
+    },
+    {
+      "x": 24,
+      "y": 456
+    },
+    {
+      "x": 242,
+      "y": 192
+    }
+  ]
+}

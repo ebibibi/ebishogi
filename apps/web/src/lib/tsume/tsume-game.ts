@@ -1,17 +1,15 @@
 /**
- * 詰将棋の進行管理。攻め方（人間・先手）の手を検証し、正解なら受け方の
- * 最善応手を自動で指して詰みを判定する。状態は常に新しいオブジェクトを返す
- * （イミュータブル）。盤面ロジックは solver 経由で shogiops に委ねる。
+ * 詰将棋の進行管理。攻め方（人間・先手）の手を、事前計算された正解手順
+ * （problem.moves）と照合する。正解なら受け方の応手を手順から指して進める。
+ * 状態は常に新しいオブジェクトを返す（イミュータブル）。
+ *
+ * 正解手順を持つので実行時のソルバー探索は不要。実戦型の重い局面でも即時に
+ * 判定できる（moves は scripts/build-tsume-problems.mts が生成時に求める）。
  */
 import { Shogi } from "shogiops/variant/shogi";
+import { parseSfen } from "shogiops/sfen";
 import { parseUsi, makeUsi } from "shogiops/util";
 import type { MoveOrDrop } from "shogiops/types";
-import {
-  positionFromSfen,
-  isMated,
-  findMatingMoves,
-  chooseDefense,
-} from "./solver";
 import type { TsumeProblem } from "./problems";
 
 export type TsumeStatus = "playing" | "solved";
@@ -27,9 +25,15 @@ export type TsumeState = {
 };
 
 export function startProblem(problem: TsumeProblem): TsumeState {
-  const position = positionFromSfen(problem.sfen);
-  if (!position) throw new Error(`不正な SFEN: ${problem.sfen}`);
-  return { problem, position, ply: 0, status: "playing", lastMove: null };
+  const result = parseSfen("standard", problem.sfen);
+  if (result.isErr) throw new Error(`不正な SFEN: ${problem.sfen}`);
+  return {
+    problem,
+    position: result.value as Shogi,
+    ply: 0,
+    status: "playing",
+    lastMove: null,
+  };
 }
 
 /** 現局面で攻め方があと何手で詰ますべきか（残り手数）。 */
@@ -43,7 +47,7 @@ export type MoveOutcome =
   | { type: "wrong"; message: string };
 
 /**
- * 攻め方の手を試す。正解なら受け方の応手まで進めた新 state を返す。
+ * 攻め方の手を正解手順と照合する。正解なら受け方の応手まで進めた新 state を返す。
  * 不正解なら state は変えず message を返す。
  */
 export function playAttackerMove(
@@ -54,44 +58,34 @@ export function playAttackerMove(
     return { type: "wrong", message: "この問題は終了しています" };
   }
 
-  const depth = remainingMate(state);
-  const mating = findMatingMoves(state.position, depth);
-  if (!mating.includes(makeUsi(move))) {
-    return { type: "wrong", message: "その手では詰みません" };
+  const i = state.ply * 2;
+  const expected = state.problem.moves[i];
+  if (!expected || makeUsi(move) !== expected) {
+    return { type: "wrong", message: "その手は正解ではありません" };
   }
 
-  const afterAttack = state.position.clone() as Shogi;
-  afterAttack.play(move);
+  const pos = state.position.clone() as Shogi;
+  pos.play(move);
   const ply = state.ply + 1;
 
-  if (isMated(afterAttack)) {
-    return {
-      type: "solved",
-      state: { ...state, position: afterAttack, ply, status: "solved", lastMove: move },
-    };
-  }
-
-  // 受け方（後手）の最も粘る応手を自動で指す
-  const defenseUsi = chooseDefense(afterAttack, depth - 1);
+  // 受け方の応手が手順に無ければ詰み上がり
+  const defenseUsi = state.problem.moves[i + 1];
   const defenseMove = defenseUsi ? parseUsi(defenseUsi) : undefined;
   if (!defenseMove) {
-    // 応手が無い＝実質詰み。保険的に solved 扱い。
     return {
       type: "solved",
-      state: { ...state, position: afterAttack, ply, status: "solved", lastMove: move },
+      state: { ...state, position: pos, ply, status: "solved", lastMove: move },
     };
   }
-  const afterDefense = afterAttack.clone() as Shogi;
-  afterDefense.play(defenseMove);
 
+  pos.play(defenseMove);
   return {
     type: "correct",
-    state: { ...state, position: afterDefense, ply, status: "playing", lastMove: defenseMove },
+    state: { ...state, position: pos, ply, status: "playing", lastMove: defenseMove },
   };
 }
 
-/** 現局面の正解初手（USI）。ヒントに使う。詰みが無ければ null。 */
+/** 現局面の正解手（USI）。ヒントに使う。手順を終えていれば null。 */
 export function currentBestMove(state: TsumeState): string | null {
-  const mating = findMatingMoves(state.position, remainingMate(state));
-  return mating[0] ?? null;
+  return state.problem.moves[state.ply * 2] ?? null;
 }

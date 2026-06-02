@@ -4,8 +4,7 @@
  */
 import type { Shogi } from "shogiops/variant/shogi";
 import { parseUsi, squareFile, squareRank } from "shogiops/util";
-import { findMatingMoves } from "./solver";
-import { remainingMate, type TsumeState } from "./tsume-game";
+import { type TsumeState } from "./tsume-game";
 
 const FILE_KANJI = ["１", "２", "３", "４", "５", "６", "７", "８", "９"];
 const RANK_KANJI = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
@@ -52,9 +51,9 @@ export type StagedHint = {
   move: string;
 };
 
-/** 現局面の正解初手から 3 段階のヒントを作る。詰みが無ければ null。 */
+/** 現局面の正解手（手順から取得）から 3 段階のヒントを作る。手順末尾なら null。 */
 export function buildHints(state: TsumeState): StagedHint | null {
-  const usi = findMatingMoves(state.position, remainingMate(state))[0];
+  const usi = state.problem.moves[state.ply * 2];
   if (!usi) return null;
   const md = parseUsi(usi);
   if (!md) return null;

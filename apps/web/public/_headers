@@ -5,3 +5,11 @@
 /tsume
   Cross-Origin-Embedder-Policy: credentialless
   Cross-Origin-Opener-Policy: same-origin
+
+# The engine's Web Worker and WASM are loaded from a cross-origin-isolated
+# document, so each /engine/ subresource needs its own COEP + CORP headers.
+# Without them the Worker is blocked (net::ERR_BLOCKED_BY_RESPONSE) even though
+# crossOriginIsolated is true, leaving the engine stuck in "loading".
+/engine/*
+  Cross-Origin-Embedder-Policy: credentialless
+  Cross-Origin-Resource-Policy: same-origin

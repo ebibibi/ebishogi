@@ -144,8 +144,8 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
           </div>
 
           <p className="text-xs text-zinc-500">
-            {mate}手詰め 全{mateProblems.length}問 ・ {solvedInMate}問 着手済み ・
-            のべ{totalReps}回 解答
+            {mate}手詰め 全{mateProblems.length}問 ・ {solvedInMate}問クリア ・ のべ
+            {totalReps}回 解答
           </p>
 
           {/* セット一覧 */}
@@ -153,14 +153,16 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
             {Array.from({ length: setTotal }, (_, i) => {
               const set = mateProblems.slice(i * setSize, i * setSize + setSize);
               const done = set.filter((p) => (counts[p.id] ?? 0) > 0).length;
+              const reps = set.reduce((s, p) => s + (counts[p.id] ?? 0), 0);
               const complete = done === set.length && set.length > 0;
               const from = i * setSize + 1;
               const to = i * setSize + set.length;
+              const pct = Math.round((done / set.length) * 100);
               return (
                 <button
                   key={i}
                   onClick={() => openSet(i)}
-                  className={`rounded-xl p-2 flex flex-col items-center gap-0.5 font-bold transition-colors ${
+                  className={`rounded-xl p-2 flex flex-col items-center gap-1 font-bold transition-colors ${
                     complete
                       ? "bg-emerald-700/80 hover:bg-emerald-600 text-white"
                       : done > 0
@@ -172,9 +174,20 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
                   <span className="text-sm">
                     {from}–{to}
                   </span>
-                  <span className="text-[11px] font-normal text-zinc-300">
+                  {/* 進捗バー（クリア済み問題数の割合を可視化） */}
+                  <div className="w-full h-1.5 bg-zinc-900/50 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${complete ? "bg-emerald-300" : "bg-sky-500"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-normal">
                     {done}/{set.length}
                     {complete && " ✓"}
+                  </span>
+                  {/* のべ反復回数（繰り返し練習量。未着手は空でレイアウト維持） */}
+                  <span className="text-[10px] font-normal text-amber-300/90 leading-none min-h-[12px]">
+                    {reps > 0 ? `のべ${reps}回` : ""}
                   </span>
                 </button>
               );

@@ -28,7 +28,17 @@ import {
 } from "@/lib/canvas/renderer";
 import { hitTest } from "@/lib/canvas/hit-test";
 
-export function GameView({ onBack }: { onBack: () => void }) {
+export function GameView({
+  onBack,
+  initialSfen,
+  tsume,
+}: {
+  onBack: () => void;
+  /** 開始局面（詰将棋など）。省略時は平手。 */
+  initialSfen?: string;
+  /** 詰将棋モード。受け方が詰めば onSolved、攻め方の自玉が詰めば onFailed。 */
+  tsume?: { onSolved: () => void; onFailed: () => void };
+}) {
   const {
     game,
     viewIndex,
@@ -45,7 +55,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
     resumeFromCurrent,
     reset,
     evalHistory,
-  } = useGameHistory();
+  } = useGameHistory(initialSfen);
+
+  // 最新の tsume コールバックを ref で保持し、useEffect/useCallback の依存から外す
+  const tsumeRef = useRef(tsume);
+  tsumeRef.current = tsume;
 
   const { settings, updateSettings, resetSettings } = useSettings();
   const [playerColor] = useState<Color>("sente");
@@ -200,11 +214,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
       return;
     }
     if (animRef.current.gameEndAnim) return;
-    const kind = message.includes("あなたの勝ち")
-      ? ("win" as const)
-      : message.includes("CPU")
-        ? ("lose" as const)
-        : ("draw" as const);
+    const kind =
+      message.includes("あなたの勝ち") || message.includes("正解")
+        ? ("win" as const)
+        : message.includes("CPU") || message.includes("失敗")
+          ? ("lose" as const)
+          : ("draw" as const);
     animRef.current.gameEndAnim = {
       text: message,
       kind,
@@ -442,9 +457,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
       }
       if (newGame.isEnd) {
         const winner = newGame.outcome?.winner;
-        if (winner === playerColor) setMessage("あなたの勝ち！");
-        else if (winner) setMessage("CPUの勝ち...");
-        else setMessage("引き分け");
+        const t = tsumeRef.current;
+        setMessage(endMessage(winner, playerColor, !!t));
+        if (t) {
+          if (winner === playerColor) t.onSolved();
+          else if (winner) t.onFailed();
+        }
       }
     },
     [
@@ -586,9 +604,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
     const run = async () => {
       try {
         const engine = getEngine();
-        const level =
-          CPU_LEVELS[settings.cpuLevel] ??
-          CPU_LEVELS[CPU_LEVELS.length - 1];
+        // 詰将棋では受け方を最強固定（最善で粘る＝正しい受け）
+        const level = tsumeRef.current
+          ? CPU_LEVELS[CPU_LEVELS.length - 1]
+          : (CPU_LEVELS[settings.cpuLevel] ??
+            CPU_LEVELS[CPU_LEVELS.length - 1]);
         const result = await engine.search(
           game.sfen,
           level.depth > 0
@@ -606,9 +626,11 @@ export function GameView({ onBack }: { onBack: () => void }) {
         }
         if (abortRef.current) return;
 
+        // 詰将棋では受け方の応手をテンポよく返す
+        const baseDelay = tsumeRef.current ? 250 : settings.cpuMoveDelay;
         const waitMs = evalShown
-          ? Math.max(settings.cpuMoveDelay, EVAL_DISPLAY_MS)
-          : settings.cpuMoveDelay;
+          ? Math.max(baseDelay, EVAL_DISPLAY_MS)
+          : baseDelay;
         if (waitMs > 0) {
           await new Promise<void>((resolve) => {
             const t = setTimeout(resolve, waitMs);
@@ -667,9 +689,12 @@ export function GameView({ onBack }: { onBack: () => void }) {
         }
         if (newGame.isEnd) {
           const winner = newGame.outcome?.winner;
-          if (winner === playerColor) setMessage("あなたの勝ち！");
-          else if (winner) setMessage("CPUの勝ち...");
-          else setMessage("引き分け");
+          const t = tsumeRef.current;
+          setMessage(endMessage(winner, playerColor, !!t));
+          if (t) {
+            if (winner === playerColor) t.onSolved();
+            else if (winner) t.onFailed();
+          }
         }
       } catch {
         /* engine unavailable */
@@ -836,4 +861,16 @@ function findKingSquare(
 ): Square | null {
   for (const sq of position.kingsOf(color)) return sq as Square;
   return null;
+}
+
+/** 終局メッセージ。詰将棋モードでは「正解／失敗」表現にする。 */
+function endMessage(
+  winner: Color | undefined,
+  playerColor: Color,
+  isTsume: boolean,
+): string {
+  if (winner === playerColor)
+    return isTsume ? "正解！詰みました 🎉" : "あなたの勝ち！";
+  if (winner) return isTsume ? "失敗… 自玉が詰みました" : "CPUの勝ち...";
+  return "引き分け";
 }

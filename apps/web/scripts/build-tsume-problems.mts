@@ -24,11 +24,6 @@ import { createReadStream, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import {
-  calcTsumeLayout,
-  fileRankToXY,
-  handSlotPositions,
-} from "../src/lib/tsume/tsume-layout";
 
 const WORK = "/home/ebi/tsume_work";
 const OUT = join(
@@ -242,50 +237,7 @@ function formatJson(problems: Problem[]): string {
   return `{\n  "problems": [\n${lines.join(",\n")}\n  ]\n}\n`;
 }
 
-// E2E用フィクスチャ: 3手詰の先頭問題(成りなし手順)の攻め手をクリック座標列にする。
-const DROP_ROLE: Record<string, Role> = {
-  R: "rook", B: "bishop", G: "gold", S: "silver",
-  N: "knight", L: "lance", P: "pawn",
-};
-function writeFixture(p3: Problem[]): void {
-  const L = calcTsumeLayout(460, 720 * 0.64); // TsumeBoard と同じ vw/vh（cell=44）
-  const sqClick = (file: number, rank: number) => {
-    const pt = fileRankToXY(file, rank, L.board, L.cell);
-    return { x: Math.round(pt.x + L.cell / 2), y: Math.round(pt.y + L.cell / 2) };
-  };
-  const usiSq = (tok: string) => ({ file: Number(tok[0]), rank: tok.charCodeAt(1) - 96 });
-  NODES = 0;
-  CUR_LIMIT = Number.MAX_SAFE_INTEGER;
-  const target = p3.find((p) => !p.moves.some((m) => m.includes("+")));
-  if (!target) { console.error("warning: 成りなし3手詰が無くフィクスチャ未生成"); return; }
-  let cur = positionFromSfen(target.sfen);
-  if (!cur) return;
-  const clicks: { x: number; y: number }[] = [];
-  for (let k = 0; k < target.moves.length; k += 2) {
-    const usi = target.moves[k]; // 攻め手
-    if (usi.includes("*")) {
-      const slots = handSlotPositions(L.bottomHand, handPieces(cur, "sente"), L.handPieceSize, true);
-      const slot = slots.find((s) => s.role === DROP_ROLE[usi[0]]);
-      if (!slot) return;
-      const t = usiSq(usi.slice(2));
-      clicks.push({ x: Math.round(slot.x + slot.w / 2), y: Math.round(L.bottomHand.y + L.bottomHand.h / 2) });
-      clicks.push(sqClick(t.file, t.rank));
-    } else {
-      const f = usiSq(usi.slice(0, 2)), t = usiSq(usi.slice(2, 4));
-      clicks.push(sqClick(f.file, f.rank), sqClick(t.file, t.rank));
-    }
-    const am = parseUsi(target.moves[k]); if (!am) return;
-    cur = applied(cur, am);
-    const du = target.moves[k + 1];
-    if (du) { const dm = parseUsi(du); if (dm) cur = applied(cur, dm); }
-  }
-  const fx = { mateIn: 3, setSize: 10, problemId: target.id, clicks };
-  const fxPath = join(dirname(fileURLToPath(import.meta.url)), "../../../e2e/tsume-fixture.json");
-  writeFileSync(fxPath, JSON.stringify(fx, null, 2) + "\n");
-  console.error(`fixture: ${target.id} clicks=${clicks.length}`);
-}
-
-/** 各手数の先頭を「成りなし手順」の問題にして id を振り直す（先頭問題の見栄え＆フィクスチャ用）。 */
+/** 各手数の先頭を「移動が初手」の問題にして id を振り直す（E2Eの初手クリックを単純化）。 */
 function reorder(data: Problem[]): Problem[] {
   const byMate = new Map<number, Problem[]>();
   for (const p of data) {
@@ -294,7 +246,7 @@ function reorder(data: Problem[]): Problem[] {
   }
   const out: Problem[] = [];
   for (const [mateIn, list] of [...byMate.entries()].sort((a, b) => a[0] - b[0])) {
-    const swap = list.findIndex((p) => !p.moves.some((m) => m.includes("+")));
+    const swap = list.findIndex((p) => p.moves[0] && !p.moves[0].includes("*"));
     if (swap > 0) { const t = list[swap]; list.splice(swap, 1); list.unshift(t); }
     list.forEach((p, i) => { p.id = `t${mateIn}-${i + 1}`; });
     out.push(...list);
@@ -303,21 +255,17 @@ function reorder(data: Problem[]): Problem[] {
 }
 
 if (process.argv.includes("--fixture-only")) {
-  // 重い再生成をせず、生成済み problems.json を整形してフィクスチャだけ作る
+  // 重い再生成をせず、生成済み problems.json を整形だけする（先頭を移動初手に）
   const data = JSON.parse(readFileSync(OUT, "utf8")).problems as Problem[];
-  const reordered = reorder(data);
-  writeFileSync(OUT, formatJson(reordered));
-  writeFixture(reordered.filter((p) => p.mateIn === 3));
-  console.error(`整形+フィクスチャ完了: 計=${reordered.length}`);
+  writeFileSync(OUT, formatJson(reorder(data)));
+  console.error(`整形完了: 計=${data.length}`);
 } else if (process.argv.includes("--append-mate7")) {
   // 既存(3/5手)を保ったまま、7手だけ超軽量設定で取れるだけ追記する
   const existing = JSON.parse(readFileSync(OUT, "utf8")).problems as Problem[];
   const base = existing.filter((p) => p.mateIn !== 7);
   const m7 = await build(7, 4, 150_000, 8_000);
-  const merged = reorder([...base, ...m7]);
-  writeFileSync(OUT, formatJson(merged));
-  writeFixture(merged.filter((p) => p.mateIn === 3));
-  console.error(`mate7追加: ${m7.length}問 → 計${merged.length}`);
+  writeFileSync(OUT, formatJson(reorder([...base, ...m7])));
+  console.error(`mate7追加: ${m7.length}問`);
 } else {
   console.error(`実践詰将棋を生成中（やねうら王500万問 → 各手数${WANT}問・正解手順付き）...`);
   const all: Problem[] = [];
@@ -330,5 +278,4 @@ if (process.argv.includes("--fixture-only")) {
   writeFileSync(OUT, formatJson(reordered));
   const counts = SETTINGS.map((s) => `${s.mateIn}手=${reordered.filter((p) => p.mateIn === s.mateIn).length}`).join(" ");
   console.error(`完了: ${counts} 計=${reordered.length} → ${OUT}`);
-  writeFixture(reordered.filter((p) => p.mateIn === 3));
 }

@@ -1,7 +1,35 @@
-import { test, expect } from "@playwright/test";
-import fixture from "./tsume-fixture.json";
+import { test, expect, type Page } from "@playwright/test";
+import problemsData from "../apps/web/src/lib/tsume/problems.json";
+import { calcLayout, fileRankToPixel } from "../apps/web/src/lib/canvas/layout";
+
+// 実践詰将棋は GameView（CPU対局と同じcanvas＋エンジン）で動く。
+// 受け方はエンジンなので応手は固定でない。よって「正解手順を最後まで辿る」のではなく、
+// 「攻め方が初手を指す→受け方が応じて手数が進む」＝自由対局が機能することを検証する。
+
+const VIEWPORT = { width: 414, height: 896 };
+// セット1の第1問（3手詰の先頭。生成時に移動初手になるよう並べ替え済み）。
+const firstProblem = (
+  problemsData as { problems: { mateIn: number; moves: string[] }[] }
+).problems.find((p) => p.mateIn === 3)!;
+
+// USIマス表記 "1f" → { file:1, rank:6 }（段 a=1 … i=9）
+function usiSquare(tok: string) {
+  return { file: Number(tok[0]), rank: tok.charCodeAt(1) - 96 };
+}
+
+// GameView と同じレイアウトでマスのcanvas座標を求める。
+async function squarePoint(page: Page, file: number, rank: number) {
+  const vw = page.viewportSize()?.width ?? VIEWPORT.width;
+  const vh = await page.evaluate(
+    () => window.visualViewport?.height ?? window.innerHeight,
+  );
+  const layout = calcLayout(vw, vh);
+  return fileRankToPixel(file, rank, false, layout.board, layout.cellSize);
+}
 
 test.describe("実践詰将棋モード", () => {
+  test.use({ viewport: VIEWPORT });
+
   test("詰将棋ページが表示される", async ({ page }) => {
     await page.goto("/tsume");
     await expect(
@@ -9,7 +37,7 @@ test.describe("実践詰将棋モード", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "3手詰め" })).toBeVisible();
     await expect(page.getByRole("button", { name: "5手詰め" })).toBeVisible();
-    // やねうらお氏へのクレジットが表示される
+    // やねうらお氏へのクレジット
     await expect(page.getByText(/やねうらお/)).toBeVisible();
   });
 
@@ -22,63 +50,52 @@ test.describe("実践詰将棋モード", () => {
     ).toBeVisible();
   });
 
-  test("セットを開くと盤面が描画され、ヒントが段階表示される", async ({
-    page,
-  }) => {
-    const consoleErrors: string[] = [];
-    page.on("pageerror", (err) => consoleErrors.push(err.message));
-
+  test("セットを開くとエンジン対局が始まる", async ({ page }) => {
     await page.goto("/tsume");
-    // 最初のセット（1–10）を開く
     await page.getByRole("button", { name: /1–10/ }).first().click();
 
-    await expect(page.getByText(/第1問/)).toBeVisible();
-    await expect(page.locator("canvas")).toBeVisible();
-    await expect(page.getByText(/残り3手/)).toBeVisible();
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
+    const status = page.getByTestId("game-status");
+    await expect(status).toHaveAttribute("data-engine", "ready", {
+      timeout: 30_000,
+    });
+    // 攻め方（先手）の手番から始まる
+    await expect(status).toHaveAttribute("data-turn", "sente");
+  });
 
-    // 1段階目のヒント
-    await page.getByRole("button", { name: "ヒント" }).click();
-    await expect(page.getByText(/を使います/)).toBeVisible();
-    // 2段階目（もっとヒント）
-    await page.getByRole("button", { name: "もっとヒント" }).click();
-    await expect(page.getByText(/がねらい目/)).toBeVisible();
+  test("攻め方が指すと受け方（エンジン）が応じる", async ({ page }) => {
+    await page.goto("/tsume");
+    await page.getByRole("button", { name: /1–10/ }).first().click();
 
-    expect(consoleErrors).toEqual([]);
+    const canvas = page.getByTestId("game-canvas");
+    await expect(canvas).toBeVisible();
+    const status = page.getByTestId("game-status");
+    await expect(status).toHaveAttribute("data-engine", "ready", {
+      timeout: 30_000,
+    });
+
+    const before = Number(await status.getAttribute("data-move-count"));
+
+    // 第1問の正解初手（移動）を指す
+    const usi = firstProblem.moves[0];
+    const from = usiSquare(usi.slice(0, 2));
+    const to = usiSquare(usi.slice(2, 4));
+    const fp = await squarePoint(page, from.file, from.rank);
+    const tp = await squarePoint(page, to.file, to.rank);
+    await canvas.click({ position: { x: fp.x, y: fp.y } });
+    await canvas.click({ position: { x: tp.x, y: tp.y } });
+
+    // 攻め方の手＋受け方の応手で手数が進む（＝自由にエンジン対局できている）
+    await expect(async () => {
+      const now = Number(await status.getAttribute("data-move-count"));
+      expect(now).toBeGreaterThan(before);
+    }).toPass({ timeout: 20_000 });
   });
 
   test("5手詰めタブに切り替えられる", async ({ page }) => {
     await page.goto("/tsume");
     await page.getByRole("button", { name: "5手詰め" }).click();
     await page.getByRole("button", { name: /1–10/ }).first().click();
-    await expect(page.getByText(/残り5手/)).toBeVisible();
-  });
-
-  test("詰将棋を解いてクリアでき、解答回数が記録される", async ({ page }) => {
-    // フィクスチャ(e2e/tsume-fixture.json)は scripts/build-tsume-problems.mts が
-    // problems.json から生成する。3手詰の先頭問題（成りなし）の攻め手のクリック座標。
-    // viewport 1280x720 では TsumeBoard が cell=44 のレイアウトを使うため、
-    // フィクスチャの座標がそのまま盤面のマス・持ち駒に対応する。
-    await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto("/tsume");
-    // 3手詰め（デフォルト）の最初のセットを開く → 第1問
-    await page.getByRole("button", { name: /1–10/ }).first().click();
-
-    const canvas = page.locator("canvas");
-    await expect(canvas).toBeVisible();
-    const status = page.getByTestId("tsume-status");
-    await expect(status).toHaveAttribute(
-      "data-remaining",
-      String(fixture.mateIn),
-    );
-
-    // 攻め方の正解手を順にクリック（受け方の応手は自動で指される）
-    for (const c of fixture.clicks) {
-      await canvas.click({ position: { x: c.x, y: c.y } });
-    }
-
-    await expect(status).toHaveAttribute("data-solved", "1");
-    await expect(page.getByText(/詰みました/)).toBeVisible();
-    // 反復練習の要：解答回数が記録される
-    await expect(status).toHaveAttribute("data-reps", "1");
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
   });
 });

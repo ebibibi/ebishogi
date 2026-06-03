@@ -15,9 +15,13 @@ export type GameState = {
   lastMove: MoveOrDrop | null;
 };
 
-export function createGame(): GameState {
-  const result = parseSfen("standard", "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1");
-  if (result.isErr) throw new Error("Failed to parse initial SFEN");
+export const INITIAL_SFEN =
+  "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+
+/** 開始局面を生成する。sfen を渡すとその局面（詰将棋など）から始められる。 */
+export function createGame(sfen: string = INITIAL_SFEN): GameState {
+  const result = parseSfen("standard", sfen);
+  if (result.isErr) throw new Error(`Failed to parse SFEN: ${sfen}`);
   const pos = result.value as Shogi;
   return stateFromPosition(pos, null);
 }

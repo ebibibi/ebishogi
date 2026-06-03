@@ -154,4 +154,27 @@ test.describe("実践詰将棋モード", () => {
       page.getByRole("heading", { name: "実践詰将棋" }),
     ).toBeVisible();
   });
+
+  test("クリア履歴がセット選択画面に反映される（クリア数・のべ回数）", async ({
+    page,
+  }) => {
+    // 3手詰の第1問を3回クリアした履歴を localStorage に仕込む（解かずに状態再現）
+    const id = (
+      problemsData as { problems: { id: string; mateIn: number }[] }
+    ).problems.find((p) => p.mateIn === 3)!.id;
+    await page.addInitScript((pid) => {
+      localStorage.setItem(
+        "ebishogi-tsume-counts-v1",
+        JSON.stringify({ [pid]: 3 }),
+      );
+    }, id);
+
+    await page.goto("/tsume");
+
+    // 統計行に「1問クリア」、セット1のセル（ボタン）に「のべ3回」が出る
+    await expect(page.getByText(/1問クリア/)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /のべ3回/ }),
+    ).toBeVisible();
+  });
 });

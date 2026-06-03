@@ -13,15 +13,17 @@ type HistoryState = {
   viewIndex: number;
 };
 
-function createInitialState(): HistoryState {
+function createInitialState(sfen?: string): HistoryState {
   return {
-    entries: [{ state: createGame(), evalCp: null }],
+    entries: [{ state: createGame(sfen), evalCp: null }],
     viewIndex: 0,
   };
 }
 
-export function useGameHistory() {
-  const [hist, setHist] = useState<HistoryState>(createInitialState);
+export function useGameHistory(initialSfen?: string) {
+  const [hist, setHist] = useState<HistoryState>(() =>
+    createInitialState(initialSfen),
+  );
 
   const current = hist.entries[hist.viewIndex];
   const isLive = hist.viewIndex === hist.entries.length - 1;
@@ -84,7 +86,10 @@ export function useGameHistory() {
     }));
   }, []);
 
-  const reset = useCallback(() => setHist(createInitialState()), []);
+  const reset = useCallback(
+    () => setHist(createInitialState(initialSfen)),
+    [initialSfen],
+  );
 
   const evalHistory = useMemo(
     () => hist.entries.map((e) => e.evalCp),

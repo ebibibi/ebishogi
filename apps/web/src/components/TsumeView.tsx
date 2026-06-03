@@ -1,20 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { MoveOrDrop } from "shogiops/types";
-import { TsumeBoard } from "./TsumeBoard";
-import {
-  problemsByMate,
-  MATE_LEVELS,
-  type TsumeProblem,
-} from "@/lib/tsume/problems";
-import {
-  startProblem,
-  playAttackerMove,
-  remainingMate,
-  type TsumeState,
-} from "@/lib/tsume/tsume-game";
-import { buildHints } from "@/lib/tsume/hint";
+import { GameView } from "./GameView";
+import { problemsByMate, MATE_LEVELS } from "@/lib/tsume/problems";
 import { AdBanner } from "@/components/AdBanner";
 import { AD_SLOTS } from "@/lib/ad-slots";
 
@@ -24,16 +12,15 @@ const SET_SIZES = [10, 50, 100] as const;
 const YANEURAOU_URL =
   "https://yaneuraou.yaneu.com/2020/12/25/christmas-present/";
 
-type Message = { text: string; kind: "correct" | "wrong" | "solved" } | null;
+type Result = "solved" | "failed" | null;
 
 export function TsumeView({ onBack }: { onBack: () => void }) {
   const [mate, setMate] = useState(3);
   const [setSize, setSetSize] = useState<number>(10);
   const [setIndex, setSetIndex] = useState<number | null>(null); // null=セット選択画面
   const [posInSet, setPosInSet] = useState(0);
-  const [history, setHistory] = useState<TsumeState[]>([]);
-  const [message, setMessage] = useState<Message>(null);
-  const [hintLevel, setHintLevel] = useState(0);
+  const [attempt, setAttempt] = useState(0); // 「もう一度」で増やし GameView を再マウント
+  const [result, setResult] = useState<Result>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -68,41 +55,16 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
   );
   const problem = currentSet[posInSet] ?? null;
 
-  // 問題が変わったら盤面を初期化する
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (problem) {
-      setHistory([startProblem(problem)]);
-      setMessage(null);
-      setHintLevel(0);
-    }
-  }, [problem?.id]);
-
-  const state = history[history.length - 1] ?? null;
-
-  const onMove = useCallback(
-    (move: MoveOrDrop) => {
-      if (!state) return;
-      const outcome = playAttackerMove(state, move);
-      if (outcome.type === "wrong") {
-        setMessage({ text: outcome.message, kind: "wrong" });
-        return;
-      }
-      setHistory((h) => [...h, outcome.state]);
-      setHintLevel(0);
-      if (outcome.type === "solved") {
-        setMessage({ text: "正解！詰みました 🎉", kind: "solved" });
-        recordSolve(outcome.state.problem.id);
-      } else {
-        setMessage({ text: "正解！ いい手です", kind: "correct" });
-      }
-    },
-    [state, recordSolve],
-  );
-
   const openSet = useCallback((idx: number) => {
     setSetIndex(idx);
     setPosInSet(0);
+    setAttempt(0);
+    setResult(null);
+  }, []);
+
+  const backToList = useCallback(() => {
+    setSetIndex(null);
+    setResult(null);
   }, []);
 
   // ── セット選択画面 ─────────────────────────────────────
@@ -110,10 +72,7 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
     const solvedInMate = mateProblems.filter(
       (p) => (counts[p.id] ?? 0) > 0,
     ).length;
-    const totalReps = mateProblems.reduce(
-      (s, p) => s + (counts[p.id] ?? 0),
-      0,
-    );
+    const totalReps = mateProblems.reduce((s, p) => s + (counts[p.id] ?? 0), 0);
 
     return (
       <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center p-6">
@@ -130,9 +89,10 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
           </div>
 
           <p className="text-sm text-zinc-400 leading-relaxed">
-            先手（あなた）が攻め方。連続王手で相手玉を詰ませましょう。実戦から生まれた
-            詰将棋なので<strong>駒余りもあり</strong>ます。同じセットを繰り返し解いて
-            棋力アップ！解いた回数は自動で記録されます。
+            先手（あなた）が攻め方。連続王手で相手玉を詰ませましょう。受け方は将棋AIが
+            最善で逃げるので、<strong>自由にどんな手でも</strong>指せます。実戦から生まれた
+            詰将棋なので<strong>駒余りもOK</strong>。同じセットを繰り返し解いて棋力アップ！
+            解いた回数は自動で記録されます。
           </p>
 
           {/* 手数タブ */}
@@ -180,10 +140,7 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
           {/* セット一覧 */}
           <div className="grid grid-cols-3 gap-2 max-h-[46vh] overflow-y-auto pr-1">
             {Array.from({ length: setTotal }, (_, i) => {
-              const set = mateProblems.slice(
-                i * setSize,
-                i * setSize + setSize,
-              );
+              const set = mateProblems.slice(i * setSize, i * setSize + setSize);
               const done = set.filter((p) => (counts[p.id] ?? 0) > 0).length;
               const complete = done === set.length && set.length > 0;
               const from = i * setSize + 1;
@@ -235,161 +192,104 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
     );
   }
 
-  // 準備中（problem 初期化待ちの一瞬）
-  if (!problem || !state) {
+  // 準備中（セット末尾を超えた等の保険）
+  if (!problem) {
     return (
       <div className="min-h-screen bg-zinc-900 text-white flex items-center justify-center">
-        <span className="text-zinc-500">読み込み中…</span>
+        <button
+          onClick={backToList}
+          className="px-4 py-2 rounded-lg bg-zinc-700"
+          type="button"
+        >
+          セット一覧へ
+        </button>
       </div>
     );
   }
 
-  // ── 出題・プレイ画面 ───────────────────────────────────
-  const hints = buildHints(state);
-  const remaining = remainingMate(state);
-  const isSolved = state.status === "solved";
-  const canUndo = history.length > 1 && !isSolved;
-  const reps = counts[problem.id] ?? 0;
-  const isLastInSet = posInSet >= currentSet.length - 1;
+  // ── 実行画面（自由対局：攻め方=人間、受け方=エンジン）─────────
+  const hasNext = posInSet < currentSet.length - 1;
   const globalNo = setIndex * setSize + posInSet + 1;
-
-  const messageColor =
-    message?.kind === "solved"
-      ? "bg-emerald-600/90 text-white"
-      : message?.kind === "correct"
-        ? "bg-sky-600/80 text-white"
-        : "bg-red-600/80 text-white";
+  const reps = counts[problem.id] ?? 0;
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center p-4 gap-3">
-      <div className="w-full max-w-[460px] flex items-center justify-between">
-        <button
-          onClick={() => setSetIndex(null)}
-          className="text-sm text-zinc-400 hover:text-white"
-          type="button"
-        >
-          ← セット
-        </button>
-        <span className="font-bold text-sm">
-          {problem.mateIn}手詰め 第{globalNo}問
-          <span className="text-zinc-400 font-normal">
-            {" "}
-            （{posInSet + 1}/{currentSet.length}）
-          </span>
-        </span>
-        <span className="text-sm text-zinc-400">
-          {isSolved ? "クリア！" : `残り${remaining}手`}
-        </span>
+    <div className="relative">
+      <GameView
+        key={`${problem.id}-${attempt}`}
+        initialSfen={problem.sfen}
+        onBack={backToList}
+        tsume={{
+          onSolved: () => {
+            recordSolve(problem.id);
+            setResult("solved");
+          },
+          onFailed: () => setResult("failed"),
+        }}
+      />
+
+      {/* 問題番号バッジ（左上・操作を邪魔しない） */}
+      <div className="fixed top-2 left-2 z-40 text-xs bg-zinc-800/80 rounded px-2 py-1 pointer-events-none">
+        {problem.mateIn}手詰め 第{globalNo}問
+        {reps > 0 && <span className="text-emerald-400"> ・{reps}回クリア</span>}
       </div>
 
-      <TsumeBoard
-        position={state.position}
-        lastMove={state.lastMove}
-        interactive={state.status === "playing"}
-        onMove={onMove}
-      />
-      {/* 盤面はcanvas描画でDOMに状態が出ないため、E2E検証用に状態をミラーする。 */}
+      {/* 状態ミラー（E2E・アクセシビリティ用） */}
       <div
         data-testid="tsume-status"
-        data-solved={isSolved ? "1" : "0"}
-        data-remaining={remaining}
-        data-reps={reps}
+        data-result={result ?? ""}
+        data-problem={problem.id}
         style={{ display: "none" }}
         aria-hidden="true"
       />
 
-      <div className="w-full max-w-[460px] flex items-center justify-between min-h-[2.5rem]">
-        <span className="text-xs text-zinc-500">
-          {reps > 0 ? `この問題 ${reps}回クリア` : "初挑戦"}
-        </span>
-        {message && (
-          <div
-            className={`px-4 py-1.5 rounded-full text-sm font-bold ${messageColor}`}
-          >
-            {message.text}
+      {/* 結果オーバーレイ */}
+      {result && (
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+          <div className="bg-zinc-800/95 rounded-2xl p-3 flex flex-col items-center gap-2 shadow-2xl max-w-[460px] w-full">
+            <span
+              className={`font-bold ${
+                result === "solved" ? "text-emerald-400" : "text-amber-300"
+              }`}
+            >
+              {result === "solved"
+                ? "正解！🎉 詰みました"
+                : "残念… 自玉が詰みました"}
+            </span>
+            <div className="flex gap-2 w-full">
+              <button
+                onClick={() => {
+                  setAttempt((a) => a + 1);
+                  setResult(null);
+                }}
+                className="flex-1 py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
+                type="button"
+              >
+                もう一度
+              </button>
+              {hasNext && (
+                <button
+                  onClick={() => {
+                    setPosInSet((p) => p + 1);
+                    setAttempt(0);
+                    setResult(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors"
+                  type="button"
+                >
+                  次の問題 →
+                </button>
+              )}
+              <button
+                onClick={backToList}
+                className="flex-1 py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
+                type="button"
+              >
+                一覧へ
+              </button>
+            </div>
           </div>
-        )}
-        <span className="w-16" />
-      </div>
-
-      {hintLevel > 0 && hints && !isSolved && (
-        <div className="w-full max-w-[460px] bg-zinc-800/70 rounded-xl p-3 text-sm space-y-1">
-          {hintLevel >= 1 && <p className="text-amber-300">💡 {hints.piece}</p>}
-          {hintLevel >= 2 && <p className="text-amber-200">💡 {hints.square}</p>}
-          {hintLevel >= 3 && (
-            <p className="text-amber-100 font-bold">💡 {hints.move}</p>
-          )}
         </div>
       )}
-
-      <div className="w-full max-w-[460px] grid grid-cols-2 gap-2">
-        {!isSolved && (
-          <button
-            onClick={() => setHintLevel((l) => Math.min(3, l + 1))}
-            disabled={hintLevel >= 3}
-            className="py-2.5 rounded-lg font-bold bg-amber-600 hover:bg-amber-500 disabled:opacity-40 transition-colors"
-            type="button"
-          >
-            {hintLevel === 0
-              ? "ヒント"
-              : hintLevel < 3
-                ? "もっとヒント"
-                : "ヒント全部"}
-          </button>
-        )}
-        {canUndo && (
-          <button
-            onClick={() => {
-              setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h));
-              setMessage(null);
-            }}
-            className="py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
-            type="button"
-          >
-            1手戻る
-          </button>
-        )}
-        {!isSolved && (
-          <button
-            onClick={() => {
-              setHistory([startProblem(problem)]);
-              setMessage(null);
-              setHintLevel(0);
-            }}
-            className="py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
-            type="button"
-          >
-            最初から
-          </button>
-        )}
-        {isSolved && !isLastInSet && (
-          <button
-            onClick={() => setPosInSet((p) => p + 1)}
-            className="py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors col-span-2"
-            type="button"
-          >
-            次の問題 →
-          </button>
-        )}
-        {isSolved && isLastInSet && (
-          <>
-            <button
-              onClick={() => setPosInSet(0)}
-              className="py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors"
-              type="button"
-            >
-              もう一周 ↻
-            </button>
-            <button
-              onClick={() => setSetIndex(null)}
-              className="py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
-              type="button"
-            >
-              セット一覧へ
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

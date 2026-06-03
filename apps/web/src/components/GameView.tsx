@@ -78,6 +78,7 @@ export function GameView({
   const isPlayerTurn = game.turn === playerColor;
   const isInteractive = isLive && isPlayerTurn && !game.isEnd;
   const flipped = playerColor === "gote";
+  const isTsume = !!tsume;
 
   const {
     arrows,
@@ -282,6 +283,7 @@ export function GameView({
       canStepForward,
       showPromotion,
       checkSquare,
+      isTsume,
     };
 
     drawCanvas(ctx, layout, state, images, animRef.current);
@@ -743,6 +745,7 @@ export function GameView({
         canStepForward,
         isLive,
         evalHistory,
+        isTsume,
       });
 
       if (!hit) return;
@@ -812,6 +815,7 @@ export function GameView({
       resumeFromCurrent,
       handleReset,
       onBack,
+      isTsume,
     ],
   );
 

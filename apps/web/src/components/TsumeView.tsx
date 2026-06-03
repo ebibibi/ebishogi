@@ -65,6 +65,19 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
     setResult(null);
   }, []);
 
+  // 同じ問題を最初からやり直す（GameView を再マウントして局面を初期化）。
+  const retryProblem = useCallback(() => {
+    setAttempt((a) => a + 1);
+    setResult(null);
+  }, []);
+
+  // セット内で問題を前後に移動する（クリア前でも自由に動ける）。
+  const goToPos = useCallback((delta: number) => {
+    setPosInSet((p) => Math.max(0, p + delta));
+    setAttempt(0);
+    setResult(null);
+  }, []);
+
   // ── セット選択画面 ─────────────────────────────────────
   if (setIndex === null) {
     const solvedInMate = mateProblems.filter(
@@ -223,10 +236,48 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
         }}
       />
 
-      {/* 問題番号バッジ（左上・操作を邪魔しない） */}
-      <div className="fixed top-2 left-2 z-40 text-xs bg-zinc-800/80 rounded px-2 py-1 pointer-events-none">
-        {problem.mateIn}手詰め 第{globalNo}問
-        {reps > 0 && <span className="text-emerald-400"> ・{reps}回クリア</span>}
+      {/* 上部操作バー（常時表示。クリア前でも やり直す／前後移動／一覧 が可能） */}
+      <div className="fixed top-0 inset-x-0 z-40 flex items-center justify-between gap-2 px-2 py-1.5 bg-zinc-900/85 backdrop-blur-sm border-b border-zinc-700/50">
+        <span className="text-xs text-zinc-300 whitespace-nowrap pl-1">
+          {problem.mateIn}手詰 第{globalNo}問
+          {reps > 0 && (
+            <span className="text-emerald-400"> ・{reps}回クリア</span>
+          )}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={retryProblem}
+            className="px-2.5 py-1 rounded-md text-xs font-bold bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 transition-colors"
+            type="button"
+          >
+            ↻ やり直す
+          </button>
+          {posInSet > 0 && (
+            <button
+              onClick={() => goToPos(-1)}
+              className="px-2.5 py-1 rounded-md text-xs font-bold bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 transition-colors"
+              type="button"
+            >
+              ← 前
+            </button>
+          )}
+          {hasNext && (
+            <button
+              onClick={() => goToPos(1)}
+              className="px-2.5 py-1 rounded-md text-xs font-bold bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 transition-colors"
+              type="button"
+            >
+              次 →
+            </button>
+          )}
+          <button
+            onClick={backToList}
+            className="px-2.5 py-1 rounded-md text-xs font-bold bg-zinc-700 hover:bg-zinc-600 active:bg-zinc-500 transition-colors"
+            type="button"
+          >
+            ☰ 一覧
+          </button>
+        </div>
       </div>
 
       {/* 状態ミラー（E2E・アクセシビリティ用） */}
@@ -234,6 +285,7 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
         data-testid="tsume-status"
         data-result={result ?? ""}
         data-problem={problem.id}
+        data-pos={posInSet}
         style={{ display: "none" }}
         aria-hidden="true"
       />
@@ -253,10 +305,7 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
             </span>
             <div className="flex gap-2 w-full">
               <button
-                onClick={() => {
-                  setAttempt((a) => a + 1);
-                  setResult(null);
-                }}
+                onClick={retryProblem}
                 className="flex-1 py-2.5 rounded-lg font-bold bg-zinc-700 hover:bg-zinc-600 transition-colors"
                 type="button"
               >
@@ -264,11 +313,7 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
               </button>
               {hasNext && (
                 <button
-                  onClick={() => {
-                    setPosInSet((p) => p + 1);
-                    setAttempt(0);
-                    setResult(null);
-                  }}
+                  onClick={() => goToPos(1)}
                   className="flex-1 py-2.5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-500 transition-colors"
                   type="button"
                 >

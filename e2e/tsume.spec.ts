@@ -98,4 +98,60 @@ test.describe("実践詰将棋モード", () => {
     await page.getByRole("button", { name: /1–10/ }).first().click();
     await expect(page.getByTestId("game-canvas")).toBeVisible();
   });
+
+  test("やり直す・一覧ボタンが常時表示される", async ({ page }) => {
+    await page.goto("/tsume");
+    await page.getByRole("button", { name: /1–10/ }).first().click();
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
+
+    await expect(page.getByRole("button", { name: /やり直す/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /一覧/ })).toBeVisible();
+  });
+
+  test("クリアしなくても次の問題へ移動できる", async ({ page }) => {
+    await page.goto("/tsume");
+    await page.getByRole("button", { name: /1–10/ }).first().click();
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
+
+    const tsumeStatus = page.getByTestId("tsume-status");
+    await expect(tsumeStatus).toHaveAttribute("data-pos", "0");
+    const firstId = await tsumeStatus.getAttribute("data-problem");
+
+    // クリアせずに上部バーの「次 →」で移動
+    await page.getByRole("button", { name: "次 →" }).click();
+
+    await expect(tsumeStatus).toHaveAttribute("data-pos", "1");
+    expect(await tsumeStatus.getAttribute("data-problem")).not.toBe(firstId);
+  });
+
+  test("最初の問題では「前」が無く、移動後に現れて戻れる", async ({ page }) => {
+    await page.goto("/tsume");
+    await page.getByRole("button", { name: /1–10/ }).first().click();
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
+
+    // pos=0 では「← 前」は表示されない
+    await expect(page.getByRole("button", { name: "← 前" })).toHaveCount(0);
+
+    // 次へ進むと「← 前」が現れる
+    await page.getByRole("button", { name: "次 →" }).click();
+    await expect(page.getByRole("button", { name: "← 前" })).toBeVisible();
+
+    // 「← 前」で第1問へ戻れる
+    await page.getByRole("button", { name: "← 前" }).click();
+    await expect(page.getByTestId("tsume-status")).toHaveAttribute(
+      "data-pos",
+      "0",
+    );
+  });
+
+  test("一覧ボタンでセット選択画面へ戻れる", async ({ page }) => {
+    await page.goto("/tsume");
+    await page.getByRole("button", { name: /1–10/ }).first().click();
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
+
+    await page.getByRole("button", { name: /一覧/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "実践詰将棋" }),
+    ).toBeVisible();
+  });
 });

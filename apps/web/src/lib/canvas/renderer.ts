@@ -67,6 +67,8 @@ export type RenderState = {
   canStepForward: boolean;
   showPromotion: { from: Square; to: Square } | null;
   checkSquare: Square | null;
+  /** 詰将棋モード。汎用アクションボタン（新しい対局/設定/トップへ）は描画せず、DOM側のバーに集約する。 */
+  isTsume?: boolean;
 };
 
 const PARTICLE_COLORS = ["#FFD700", "#FF8C00", "#FF4500", "#FFFFFF", "#FFA500"];
@@ -127,7 +129,7 @@ export function drawCanvas(
   drawEvalGraph(ctx, layout, state);
   drawTimerMeter(ctx, layout, state);
   drawInfo(ctx, layout, state);
-  drawActionBtns(ctx, layout);
+  if (!state.isTsume) drawActionBtns(ctx, layout);
 
   if (anim.captureTime > 0 && anim.particles.length > 0) {
     const elapsed = (performance.now() - anim.captureTime) / 1000;

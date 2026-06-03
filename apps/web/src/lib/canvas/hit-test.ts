@@ -26,6 +26,8 @@ export type HitState = {
   canStepForward: boolean;
   isLive: boolean;
   evalHistory: (number | null)[];
+  /** 詰将棋モード。汎用アクションボタンは判定しない（DOM側のバーに集約）。 */
+  isTsume?: boolean;
 };
 
 export function hitTest(
@@ -87,9 +89,11 @@ export function hitTest(
     };
   }
 
-  for (const btn of getActionButtons(layout)) {
-    if (inRect(x, y, btn))
-      return { type: "button", action: btn.action };
+  if (!state.isTsume) {
+    for (const btn of getActionButtons(layout)) {
+      if (inRect(x, y, btn))
+        return { type: "button", action: btn.action };
+    }
   }
 
   return null;

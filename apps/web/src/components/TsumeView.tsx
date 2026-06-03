@@ -15,6 +15,8 @@ import {
   type TsumeState,
 } from "@/lib/tsume/tsume-game";
 import { buildHints } from "@/lib/tsume/hint";
+import { AdBanner } from "@/components/AdBanner";
+import { AD_SLOTS } from "@/lib/ad-slots";
 
 // 解答回数（id → 解いた回数）。反復練習の可視化に使う。
 const COUNTS_KEY = "ebishogi-tsume-counts-v1";
@@ -226,6 +228,8 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
             <br />
             素晴らしいデータの公開に感謝します 🙏
           </p>
+
+          <AdBanner slot={AD_SLOTS.TSUME_FOOTER} className="w-full mt-2" />
         </div>
       </div>
     );

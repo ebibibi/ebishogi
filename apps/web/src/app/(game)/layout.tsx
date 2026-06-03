@@ -18,6 +18,11 @@ export default function GameLayout({
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap"
           rel="stylesheet"
         />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9817070969559871"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

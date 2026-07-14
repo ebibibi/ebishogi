@@ -59,6 +59,10 @@ export default function RootLayout({
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9817070969559871"
           crossOrigin="anonymous"
         />
+        <script
+          async
+          src="https://www.ebisuda.net/campaigns/banner.js?v=1"
+        />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

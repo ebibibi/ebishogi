@@ -9,6 +9,7 @@ import {
   getControlButtons,
   getActionButtons,
   getPromotionButtons,
+  getEvalPlotArea,
 } from "./layout";
 import { coordsToSquare, getHandPieces } from "@/lib/shogi-game";
 
@@ -690,6 +691,15 @@ function drawControls(
 
 // ── Eval Graph ────────────────────────────────────────
 
+/**
+ * 評価値(cp)を 0..1 の表示位置に変換する。
+ * 線形だと ±300 程度の動きが潰れて見えないため、勝率へ写像してから描く。
+ * 1.0 = 自分が勝勢（上端）、0.0 = 相手が勝勢（下端）。
+ */
+function cpToRatio(cp: number): number {
+  return 1 / (1 + Math.exp(-cp / 600));
+}
+
 function drawEvalGraph(
   ctx: CanvasRenderingContext2D,
   layout: CanvasLayout,
@@ -697,42 +707,92 @@ function drawEvalGraph(
 ) {
   const { evalGraph } = layout;
   const { evalHistory, viewIndex } = state;
-  if (evalHistory.length < 2) return;
+
+  const plot = getEvalPlotArea(evalGraph);
+  const { x: plotX, y: plotY, w: plotW, h: plotH, showDetail } = plot;
+  const midY = plotY + plotH / 2;
 
   ctx.fillStyle = "rgba(39,39,42,0.6)";
   rr(ctx, evalGraph.x, evalGraph.y, evalGraph.w, evalGraph.h, 6);
   ctx.fill();
 
-  const maxCp = 2000;
-  const pad = 3;
-  const cpToY = (cp: number | null) => {
-    const c = Math.max(-maxCp, Math.min(maxCp, cp ?? 0));
-    return (
-      evalGraph.y +
-      evalGraph.h / 2 -
-      (c / maxCp) * (evalGraph.h / 2 - pad)
-    );
-  };
+  const ratioToY = (r: number) => plotY + (1 - r) * plotH;
+  const cpToY = (cp: number | null) => ratioToY(cpToRatio(cp ?? 0));
 
-  ctx.strokeStyle = "#555";
-  ctx.lineWidth = 0.5;
+  // 目盛り（横線）。背の高いパネルのときだけ ±1000 / ±300 も引く
+  const guides = showDetail
+    ? [1000, 300, -300, -1000]
+    : [1000, -1000];
+  ctx.strokeStyle = "rgba(255,255,255,0.07)";
+  ctx.lineWidth = 1;
+  for (const cp of guides) {
+    const gy = Math.round(cpToY(cp)) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(plotX, gy);
+    ctx.lineTo(plotX + plotW, gy);
+    ctx.stroke();
+  }
+  if (showDetail) {
+    ctx.fillStyle = "rgba(161,161,170,0.75)";
+    ctx.font = "9px monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    for (const cp of [1000, 0, -1000]) {
+      const text = cp > 0 ? `+${cp}` : `${cp}`;
+      ctx.fillText(text, evalGraph.x + 4, cpToY(cp));
+    }
+    ctx.fillStyle = "rgba(212,175,55,0.55)";
+    ctx.textBaseline = "top";
+    ctx.fillText("あなた有利", evalGraph.x + 4, plotY + 1);
+    ctx.textBaseline = "bottom";
+    ctx.fillText("相手有利", evalGraph.x + 4, plotY + plotH - 1);
+  }
+
+  // 互角のライン
+  ctx.strokeStyle = "#666";
+  ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
-  ctx.moveTo(evalGraph.x, evalGraph.y + evalGraph.h / 2);
-  ctx.lineTo(evalGraph.x + evalGraph.w, evalGraph.y + evalGraph.h / 2);
+  ctx.moveTo(plotX, midY);
+  ctx.lineTo(plotX + plotW, midY);
   ctx.stroke();
   ctx.setLineDash([]);
 
+  if (evalHistory.length < 2) return;
+
+  const stepX = plotW / (evalHistory.length - 1);
   const pts = evalHistory.map((cp, i) => ({
-    x: evalGraph.x + (i / (evalHistory.length - 1)) * evalGraph.w,
+    x: plotX + i * stepX,
     y: cpToY(cp),
   }));
 
+  // 手数の目盛り（縦線）。10手ごと、間隔が詰まりすぎない範囲で
+  if (showDetail && stepX * 10 >= 24) {
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.fillStyle = "rgba(161,161,170,0.5)";
+    ctx.font = "8px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    for (let i = 10; i < evalHistory.length; i += 10) {
+      const gx = Math.round(plotX + i * stepX) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(gx, plotY);
+      ctx.lineTo(gx, plotY + plotH);
+      ctx.stroke();
+      ctx.fillText(`${i}`, gx, plotY + plotH - 1);
+    }
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(plotX, plotY - 1, plotW, plotH + 2);
+  ctx.clip();
+
   ctx.fillStyle = "rgba(212,175,55,0.12)";
   ctx.beginPath();
-  ctx.moveTo(evalGraph.x, evalGraph.y + evalGraph.h / 2);
+  ctx.moveTo(plotX, midY);
   for (const p of pts) ctx.lineTo(p.x, p.y);
-  ctx.lineTo(evalGraph.x + evalGraph.w, evalGraph.y + evalGraph.h / 2);
+  ctx.lineTo(plotX + plotW, midY);
   ctx.closePath();
   ctx.fill();
 
@@ -744,28 +804,40 @@ function drawEvalGraph(
     i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y),
   );
   ctx.stroke();
+  ctx.restore();
 
   const cur = pts[viewIndex];
   if (cur) {
+    ctx.strokeStyle = "rgba(212,175,55,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cur.x, plotY);
+    ctx.lineTo(cur.x, plotY + plotH);
+    ctx.stroke();
+
     ctx.fillStyle = "#d4af37";
     ctx.beginPath();
-    ctx.arc(cur.x, cur.y, 3, 0, Math.PI * 2);
+    ctx.arc(cur.x, cur.y, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
 
+  // 現在の評価値。折れ線と重なっても読めるよう背景を敷く
   if (state.currentEval !== null) {
     const ev = fmtEval(state.currentEval);
-    const efs = Math.max(10, Math.floor(evalGraph.h * 0.4));
+    const efs = Math.max(10, Math.min(16, Math.floor(evalGraph.h * 0.4)));
     ctx.font = `bold ${efs}px monospace`;
     ctx.textAlign = "right";
     ctx.textBaseline = "top";
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillText(ev.text, evalGraph.x + evalGraph.w - 3, evalGraph.y + 3);
+    const tw = ctx.measureText(ev.text).width;
+    const bx = evalGraph.x + evalGraph.w - tw - 10;
+    ctx.fillStyle = "rgba(24,24,27,0.85)";
+    rr(ctx, bx, evalGraph.y + 2, tw + 8, efs + 6, 4);
+    ctx.fill();
     ctx.fillStyle = ev.color;
-    ctx.fillText(ev.text, evalGraph.x + evalGraph.w - 4, evalGraph.y + 2);
+    ctx.fillText(ev.text, evalGraph.x + evalGraph.w - 6, evalGraph.y + 5);
   }
 }
 

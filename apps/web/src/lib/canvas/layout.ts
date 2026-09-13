@@ -11,6 +11,8 @@ export type CanvasLayout = {
   handH: number;
   pieceSize: number;
   handPieceSize: number;
+  /** 形勢グラフを盤の横（縦長パネル）に出しているか */
+  evalGraphSide: boolean;
   topHand: Rect;
   board: Rect;
   bottomHand: Rect;
@@ -63,30 +65,101 @@ const INFO_H_MIN = 36;
 const BTN_H = 28;
 const GAP = 3;
 const BOTTOM_PAD = 6;
-const FIXED_MIN =
-  CONTROLS_H + EVAL_H + METER_H + INFO_H_MIN + BTN_H + GAP * 7 + BOTTOM_PAD;
+
+/** 形勢グラフを盤の下に置くときの最大高さ。余った縦スペースまで伸ばす。 */
+const EVAL_H_MAX = 110;
+/** 盤の横に形勢グラフ（縦長パネル）を出すのに必要な最小幅。 */
+const SIDE_MIN_W = 200;
+const SIDE_MAX_W = 340;
+const SIDE_GAP = 14;
+/** サイドパネルを出すとき、画面端に残す余白。 */
+const SIDE_MARGIN = 12;
+
+/**
+ * 盤のマスサイズと情報エリアの高さを求める。
+ * 盤＋駒台は縦に 9 + 0.65*2 = 10.3 マス分を占める。
+ *
+ * @param availW 盤に使える横幅（サイドパネル分を差し引いた値）
+ * @param evalRowH 縦スタックに積む形勢グラフの高さ。横に出すときは0
+ */
+function calcBoardMetrics(
+  availW: number,
+  vh: number,
+  evalRowH: number,
+): { cellSize: number; infoH: number } {
+  const fromW = Math.floor(availW / 9);
+  const gaps = GAP * (evalRowH > 0 ? 7 : 6);
+  const baseFixed =
+    CONTROLS_H + evalRowH + METER_H + BTN_H + gaps + BOTTOM_PAD;
+  const estimate = Math.max(
+    32,
+    Math.min(Math.floor((vh - baseFixed - INFO_H_MIN) / 10.3), fromW),
+  );
+  const infoH = Math.max(INFO_H_MIN, Math.floor(estimate * 0.5));
+  const fromH = Math.floor((vh - baseFixed - infoH) / 10.3);
+  const cellSize = Math.max(32, Math.min(fromH, fromW));
+  return { cellSize, infoH };
+}
 
 export function calcLayout(vw: number, vh: number): CanvasLayout {
   const dpr =
     typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-  const fromW = Math.floor(vw / 9);
-  const estimate = Math.max(
-    32,
-    Math.min(Math.floor((vh - FIXED_MIN) / 10.3), fromW),
-  );
-  const infoH = Math.max(INFO_H_MIN, Math.floor(estimate * 0.5));
-  const fixed =
-    CONTROLS_H + EVAL_H + METER_H + infoH + BTN_H + GAP * 7 + BOTTOM_PAD;
-  const fromH = Math.floor((vh - fixed) / 10.3);
-  const cellSize = Math.max(32, Math.min(fromH, fromW));
 
+  // 形勢グラフの置き場所を決める。
+  // 横長画面では盤の左右が余るので、そこへ縦長パネルとして出す
+  // （横に長く上下に狭い帯だと、評価値の上下動が潰れて読めないため）。
+  // 盤が小さくなるなら横出しはしない。
+  // 下に置く場合の確保高さ。画面が縦に広いほど厚く取る
+  // （30pxの帯だと横に長いだけで評価値の上下動が読めない）。
+  const evalReserve = Math.min(
+    EVAL_H_MAX,
+    Math.max(EVAL_H, Math.round(vh * 0.09)),
+  );
+  const stacked = calcBoardMetrics(vw, vh, evalReserve);
+  const side = calcBoardMetrics(
+    vw - (SIDE_MIN_W + SIDE_GAP + SIDE_MARGIN * 2),
+    vh,
+    0,
+  );
+  const sideSpace =
+    vw - side.cellSize * 9 - SIDE_GAP - SIDE_MARGIN * 2;
+  const useSidePanel =
+    sideSpace >= SIDE_MIN_W && side.cellSize >= stacked.cellSize;
+
+  const { cellSize, infoH } = useSidePanel ? side : stacked;
   const boardPx = cellSize * 9;
   const handH = Math.ceil(cellSize * 0.65);
   const pieceSize = Math.floor(cellSize * 0.92);
   const handPieceSize = Math.max(18, Math.floor(cellSize * 0.5));
 
+  const stackH = (evalRowH: number) =>
+    handH * 2 +
+    boardPx +
+    CONTROLS_H +
+    evalRowH +
+    METER_H +
+    infoH +
+    BTN_H +
+    GAP * (evalRowH > 0 ? 7 : 6) +
+    BOTTOM_PAD;
+
+  // 下に置く場合は、余った縦スペースをそのままグラフの高さに回す
+  // （盤のサイズは既に確定しているので盤は縮まない）。
+  const evalRowH = useSidePanel
+    ? 0
+    : Math.min(
+        EVAL_H_MAX,
+        evalReserve + Math.max(0, vh - stackH(evalReserve)),
+      );
+
+  const sidePanelW = useSidePanel
+    ? Math.min(SIDE_MAX_W, Math.max(SIDE_MIN_W, sideSpace))
+    : 0;
+  const totalW =
+    boardPx + (useSidePanel ? SIDE_GAP + sidePanelW : 0);
+  const ox = Math.floor((vw - totalW) / 2);
+
   const contentW = boardPx;
-  const ox = Math.floor((vw - contentW) / 2);
   let y = 0;
 
   const topHand: Rect = { x: 0, y, w: contentW, h: handH };
@@ -94,11 +167,20 @@ export function calcLayout(vw: number, vh: number): CanvasLayout {
   const board: Rect = { x: 0, y, w: boardPx, h: boardPx };
   y += boardPx + GAP;
   const bottomHand: Rect = { x: 0, y, w: contentW, h: handH };
+  const stackBottom = y + handH;
   y += handH + GAP;
   const controls: Rect = { x: 0, y, w: contentW, h: CONTROLS_H };
   y += CONTROLS_H + GAP;
-  const evalGraph: Rect = { x: 0, y, w: contentW, h: EVAL_H };
-  y += EVAL_H + GAP;
+  // 横出しのときは駒台を含めた盤全体の高さいっぱいに取る
+  const evalGraph: Rect = useSidePanel
+    ? {
+        x: boardPx + SIDE_GAP,
+        y: topHand.y,
+        w: sidePanelW,
+        h: stackBottom - topHand.y,
+      }
+    : { x: 0, y, w: contentW, h: evalRowH };
+  if (!useSidePanel) y += evalRowH + GAP;
   const timerMeter: Rect = { x: 0, y, w: contentW, h: METER_H };
   y += METER_H + GAP;
   const infoArea: Rect = { x: 0, y, w: contentW, h: infoH };
@@ -124,6 +206,7 @@ export function calcLayout(vw: number, vh: number): CanvasLayout {
     handH,
     pieceSize,
     handPieceSize,
+    evalGraphSide: useSidePanel,
     topHand: shift(topHand),
     board: shift(board),
     bottomHand: shift(bottomHand),
@@ -132,6 +215,27 @@ export function calcLayout(vw: number, vh: number): CanvasLayout {
     timerMeter: shift(timerMeter),
     infoArea: shift(infoArea),
     actionButtons: shift(actionButtons),
+  };
+}
+
+/**
+ * 形勢グラフの折れ線を描く内側の領域。
+ * 目盛りラベルの分だけ左右を削る。描画とクリック判定で同じ値を使うため
+ * ここに集約する（ズレると別の手へジャンプしてしまう）。
+ */
+export function getEvalPlotArea(
+  rect: Rect,
+): Rect & { showDetail: boolean } {
+  const pad = Math.min(8, Math.max(3, Math.floor(rect.h * 0.06)));
+  const showDetail = rect.h >= 70;
+  const labelW = showDetail ? 38 : 0;
+  const rightPad = showDetail ? 6 : 0;
+  return {
+    x: rect.x + labelW,
+    y: rect.y + pad,
+    w: rect.w - labelW - rightPad,
+    h: rect.h - pad * 2,
+    showDetail,
   };
 }
 

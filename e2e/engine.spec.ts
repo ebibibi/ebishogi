@@ -168,3 +168,43 @@ test.describe("ebishogi CPU対局", () => {
     ).toBeVisible();
   });
 });
+
+// 形勢グラフは「横に長く上下に狭い帯」だと評価値の上下動が読めない。
+// calcLayout は純関数なので、画面サイズごとの配置をここで直接検証する。
+test.describe("形勢グラフのレイアウト", () => {
+  const bottomOf = (l: ReturnType<typeof calcLayout>) =>
+    l.actionButtons.y + l.actionButtons.h;
+
+  test("横長画面では盤の横に縦長パネルとして出る", () => {
+    for (const [vw, vh] of [
+      [1920, 1080],
+      [1440, 900],
+      [1280, 720],
+    ]) {
+      const l = calcLayout(vw, vh);
+      expect(l.evalGraphSide).toBe(true);
+      // 盤の右隣に置かれ、盤と重ならない
+      expect(l.evalGraph.x).toBeGreaterThanOrEqual(l.board.x + l.board.w);
+      expect(l.evalGraph.x + l.evalGraph.w).toBeLessThanOrEqual(vw);
+      // 盤と同じくらいの高さがあり、帯ではない
+      expect(l.evalGraph.h).toBeGreaterThan(l.board.h * 0.9);
+      expect(bottomOf(l)).toBeLessThanOrEqual(vh);
+    }
+  });
+
+  test("縦長画面では盤の下に十分な高さで出る", () => {
+    for (const [vw, vh] of [
+      [414, 896],
+      [390, 844],
+      [360, 640],
+      [768, 1024],
+      [900, 1200],
+    ]) {
+      const l = calcLayout(vw, vh);
+      expect(l.evalGraphSide).toBe(false);
+      expect(l.evalGraph.h).toBeGreaterThanOrEqual(60);
+      // 画面外へはみ出さない
+      expect(bottomOf(l)).toBeLessThanOrEqual(vh);
+    }
+  });
+});

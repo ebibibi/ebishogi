@@ -758,70 +758,72 @@ function drawEvalGraph(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  if (evalHistory.length < 2) return;
+  // 1手目は履歴が1点しかないので折れ線は描かない（枠と現在値だけ出す）
+  if (evalHistory.length >= 2) {
 
-  const stepX = plotW / (evalHistory.length - 1);
-  const pts = evalHistory.map((cp, i) => ({
-    x: plotX + i * stepX,
-    y: cpToY(cp),
-  }));
+    const stepX = plotW / (evalHistory.length - 1);
+    const pts = evalHistory.map((cp, i) => ({
+      x: plotX + i * stepX,
+      y: cpToY(cp),
+    }));
 
-  // 手数の目盛り（縦線）。10手ごと、間隔が詰まりすぎない範囲で
-  if (showDetail && stepX * 10 >= 24) {
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
-    ctx.fillStyle = "rgba(161,161,170,0.5)";
-    ctx.font = "8px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    for (let i = 10; i < evalHistory.length; i += 10) {
-      const gx = Math.round(plotX + i * stepX) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(gx, plotY);
-      ctx.lineTo(gx, plotY + plotH);
-      ctx.stroke();
-      ctx.fillText(`${i}`, gx, plotY + plotH - 1);
+    // 手数の目盛り（縦線）。10手ごと、間隔が詰まりすぎない範囲で
+    if (showDetail && stepX * 10 >= 24) {
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.fillStyle = "rgba(161,161,170,0.5)";
+      ctx.font = "8px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      for (let i = 10; i < evalHistory.length; i += 10) {
+        const gx = Math.round(plotX + i * stepX) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(gx, plotY);
+        ctx.lineTo(gx, plotY + plotH);
+        ctx.stroke();
+        ctx.fillText(`${i}`, gx, plotY + plotH - 1);
+      }
     }
-  }
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(plotX, plotY - 1, plotW, plotH + 2);
-  ctx.clip();
-
-  ctx.fillStyle = "rgba(212,175,55,0.12)";
-  ctx.beginPath();
-  ctx.moveTo(plotX, midY);
-  for (const p of pts) ctx.lineTo(p.x, p.y);
-  ctx.lineTo(plotX + plotW, midY);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = "#d4af37";
-  ctx.lineWidth = 2;
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  pts.forEach((p, i) =>
-    i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y),
-  );
-  ctx.stroke();
-  ctx.restore();
-
-  const cur = pts[viewIndex];
-  if (cur) {
-    ctx.strokeStyle = "rgba(212,175,55,0.35)";
-    ctx.lineWidth = 1;
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(cur.x, plotY);
-    ctx.lineTo(cur.x, plotY + plotH);
-    ctx.stroke();
+    ctx.rect(plotX, plotY - 1, plotW, plotH + 2);
+    ctx.clip();
 
-    ctx.fillStyle = "#d4af37";
+    ctx.fillStyle = "rgba(212,175,55,0.12)";
     ctx.beginPath();
-    ctx.arc(cur.x, cur.y, 3.5, 0, Math.PI * 2);
+    ctx.moveTo(plotX, midY);
+    for (const p of pts) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(plotX + plotW, midY);
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 1.5;
+
+    ctx.strokeStyle = "#d4af37";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    pts.forEach((p, i) =>
+      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y),
+    );
     ctx.stroke();
+    ctx.restore();
+
+    const cur = pts[viewIndex];
+    if (cur) {
+      ctx.strokeStyle = "rgba(212,175,55,0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cur.x, plotY);
+      ctx.lineTo(cur.x, plotY + plotH);
+      ctx.stroke();
+
+      ctx.fillStyle = "#d4af37";
+      ctx.beginPath();
+      ctx.arc(cur.x, cur.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
   // 現在の評価値。折れ線と重なっても読めるよう背景を敷く

@@ -28,6 +28,24 @@ import {
 } from "@/lib/canvas/renderer";
 import { hitTest } from "@/lib/canvas/hit-test";
 
+/**
+ * 盤上の選択状態。どの局面に対する選択かを sfen で保持し、局面が進んだら
+ * （effect で消すのではなく）key 不一致で「選択なし」として読む。
+ */
+type Selection = {
+  readonly sfen: string | null;
+  readonly square: Square | null;
+  readonly drop: Role | null;
+  readonly legalDests: ReadonlySet<number>;
+};
+
+const NO_SELECTION: Selection = {
+  sfen: null,
+  square: null,
+  drop: null,
+  legalDests: new Set(),
+};
+
 export function GameView({
   onBack,
   initialSfen,
@@ -57,9 +75,12 @@ export function GameView({
     evalHistory,
   } = useGameHistory(initialSfen);
 
-  // 最新の tsume コールバックを ref で保持し、useEffect/useCallback の依存から外す
+  // 最新の tsume コールバックを ref で保持し、useEffect/useCallback の依存から外す。
+  // ref への書き込みはレンダー中ではなくコミット後に行う（読むのは非同期処理の中だけ）。
   const tsumeRef = useRef(tsume);
-  tsumeRef.current = tsume;
+  useEffect(() => {
+    tsumeRef.current = tsume;
+  });
 
   const { settings, updateSettings, resetSettings } = useSettings();
   const [playerColor] = useState<Color>("sente");
@@ -107,9 +128,14 @@ export function GameView({
     );
   });
 
-  const [selected, setSelected] = useState<Square | null>(null);
-  const [selectedDrop, setSelectedDrop] = useState<Role | null>(null);
-  const [legalDests, setLegalDests] = useState<Set<number>>(new Set());
+  const [selection, setSelection] = useState<Selection>(NO_SELECTION);
+
+  // 局面が変わった選択は自動的に無効になる
+  const currentSelection =
+    selection.sfen === game.sfen ? selection : NO_SELECTION;
+  const selected = currentSelection.square;
+  const selectedDrop = currentSelection.drop;
+  const legalDests = currentSelection.legalDests;
   const [showPromotion, setShowPromotion] = useState<{
     from: Square;
     to: Square;
@@ -145,12 +171,6 @@ export function GameView({
       window.visualViewport?.removeEventListener("resize", handler);
     };
   }, []);
-
-  useEffect(() => {
-    setSelected(null);
-    setSelectedDrop(null);
-    setLegalDests(new Set());
-  }, [game.position]);
 
   useEffect(() => {
     if (!badMoveAlert) {
@@ -499,8 +519,7 @@ export function GameView({
         if (dests.has(sq)) {
           commitMove({ role: selectedDrop, to: sq });
         }
-        setSelectedDrop(null);
-        setLegalDests(new Set());
+        setSelection(NO_SELECTION);
         return;
       }
 
@@ -521,17 +540,20 @@ export function GameView({
           });
           return;
         }
-        setSelected(null);
-        setLegalDests(new Set());
+        setSelection({ ...NO_SELECTION, sfen: game.sfen, drop: selectedDrop });
       }
 
       const piece = game.position.board.get(sq);
       if (piece && piece.color === game.position.turn) {
-        setSelected(sq);
         const dests = game.position.moveDests(sq);
         const destSet = new Set<number>();
         for (const d of dests) destSet.add(d);
-        setLegalDests(destSet);
+        setSelection({
+          sfen: game.sfen,
+          square: sq,
+          drop: null,
+          legalDests: destSet,
+        });
       }
     },
     [
@@ -548,13 +570,16 @@ export function GameView({
   const handleHandClick = useCallback(
     (role: Role) => {
       if (!isInteractive) return;
-      setSelected(null);
-      setSelectedDrop(role);
       const piece: Piece = { role, color: game.position.turn };
       const dests = game.position.dropDests(piece);
       const destSet = new Set<number>();
       for (const d of dests) destSet.add(d);
-      setLegalDests(destSet);
+      setSelection({
+        sfen: game.sfen,
+        square: null,
+        drop: role,
+        legalDests: destSet,
+      });
     },
     [isInteractive, game],
   );
@@ -844,6 +869,7 @@ export function GameView({
         data-live={isLive ? "1" : "0"}
         data-end={game.isEnd ? "1" : "0"}
         data-eval={currentEval ?? ""}
+        data-arrows={arrows.length}
         style={{ display: "none" }}
         aria-hidden="true"
       />

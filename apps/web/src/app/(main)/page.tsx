@@ -6,25 +6,22 @@ import { AdBanner } from "@/components/AdBanner";
 import { AD_SLOTS } from "@/lib/ad-slots";
 import { useSettings } from "@/hooks/useSettings";
 
-type Screen = "home" | "selectLevel" | "playing";
+type Screen = "home" | "selectLevel";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const { settings, updateSettings } = useSettings();
-
-  if (screen === "playing") {
-    if (typeof window !== "undefined") {
-      window.location.href = "/game";
-    }
-    return null;
-  }
 
   if (screen === "selectLevel") {
     return (
       <LevelSelectScreen
         cpuLevel={settings.cpuLevel}
         onSelect={(level) => updateSettings({ cpuLevel: level })}
-        onStart={() => setScreen("playing")}
+        onStart={() => {
+          // 対局は別ルート。エンジンを新しいページで初期化させたいので
+          // クライアント遷移ではなくフルナビゲーションで移る。
+          window.location.href = "/game";
+        }}
         onBack={() => setScreen("home")}
       />
     );

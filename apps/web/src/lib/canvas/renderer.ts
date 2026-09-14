@@ -49,7 +49,7 @@ export type RenderState = {
   flipped: boolean;
   selected: Square | null;
   selectedDrop: Role | null;
-  legalDests: Set<number>;
+  legalDests: ReadonlySet<number>;
   arrows: readonly ArrowData[];
   evalHistory: (number | null)[];
   currentEval: number | null;

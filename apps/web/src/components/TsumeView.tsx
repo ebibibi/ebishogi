@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { GameView } from "./GameView";
 import { problemsByMate, MATE_LEVELS } from "@/lib/tsume/problems";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 
 // 解答回数（id → 解いた回数）。反復練習の可視化に使う。
 const COUNTS_KEY = "ebishogi-tsume-counts-v1";
+const NO_COUNTS: Record<string, number> = {};
 const SET_SIZES = [10, 50, 100] as const;
 const YANEURAOU_URL =
   "https://yaneuraou.yaneu.com/2020/12/25/christmas-present/";
@@ -19,28 +21,17 @@ export function TsumeView({ onBack }: { onBack: () => void }) {
   const [posInSet, setPosInSet] = useState(0);
   const [attempt, setAttempt] = useState(0); // 「もう一度」で増やし GameView を再マウント
   const [result, setResult] = useState<Result>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [counts, setCounts] = useLocalStorageState<Record<string, number>>(
+    COUNTS_KEY,
+    NO_COUNTS,
+  );
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(COUNTS_KEY);
-      if (raw) setCounts(JSON.parse(raw));
-    } catch {
-      /* localStorage 不可でも続行 */
-    }
-  }, []);
-
-  const recordSolve = useCallback((id: string) => {
-    setCounts((prev) => {
-      const next = { ...prev, [id]: (prev[id] ?? 0) + 1 };
-      try {
-        localStorage.setItem(COUNTS_KEY, JSON.stringify(next));
-      } catch {
-        /* 保存失敗は無視 */
-      }
-      return next;
-    });
-  }, []);
+  const recordSolve = useCallback(
+    (id: string) => {
+      setCounts((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    },
+    [setCounts],
+  );
 
   const mateProblems = useMemo(() => problemsByMate(mate), [mate]);
   const setTotal = Math.max(1, Math.ceil(mateProblems.length / setSize));

@@ -6,6 +6,7 @@ import {
   getControlButtons,
   getActionButtons,
   getPromotionButtons,
+  getEvalPlotArea,
 } from "./layout";
 import { getHandPieces } from "@/lib/shogi-game";
 
@@ -78,7 +79,8 @@ export function hitTest(
 
   const { evalGraph } = layout;
   if (inRect(x, y, evalGraph) && state.evalHistory.length >= 2) {
-    const rel = (x - evalGraph.x) / evalGraph.w;
+    const plot = getEvalPlotArea(evalGraph);
+    const rel = (x - plot.x) / plot.w;
     const index = Math.round(rel * (state.evalHistory.length - 1));
     return {
       type: "evalGraph",

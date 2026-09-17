@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored YaneuraOu WASM glue code (minified Emscripten output, GPL-3.0
+    // upstream). Not ours to restyle, and it is shipped verbatim.
+    "public/engine/yaneuraou.*.js",
   ]),
 ]);
 

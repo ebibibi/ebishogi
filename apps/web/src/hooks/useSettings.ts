@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useCallback } from "react";
+
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 
 export type CpuLevel = {
   readonly name: string;
@@ -50,37 +52,18 @@ export const DEFAULT_SETTINGS: GameSettings = {
 const STORAGE_KEY = "ebishogi-settings";
 
 export function useSettings() {
-  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
-    } catch {
-      /* localStorage unavailable */
-    }
-  }, []);
-
-  const updateSettings = useCallback((partial: Partial<GameSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...partial };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* localStorage unavailable */
-      }
-      return next;
+  // 保存済みの設定は既定値にマージする（項目追加時に既存ユーザーが欠損しないように）
+  const [settings, setSettings, resetSettings] =
+    useLocalStorageState<GameSettings>(STORAGE_KEY, DEFAULT_SETTINGS, {
+      merge: true,
     });
-  }, []);
 
-  const resetSettings = useCallback(() => {
-    setSettings(DEFAULT_SETTINGS);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* localStorage unavailable */
-    }
-  }, []);
+  const updateSettings = useCallback(
+    (partial: Partial<GameSettings>) => {
+      setSettings((prev) => ({ ...prev, ...partial }));
+    },
+    [setSettings],
+  );
 
   return { settings, updateSettings, resetSettings };
 }

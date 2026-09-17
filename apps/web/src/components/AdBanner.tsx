@@ -2,6 +2,13 @@
 
 import { useEffect, useRef } from "react";
 
+declare global {
+  interface Window {
+    /** Injected by the AdSense loader script; each push renders one <ins>. */
+    adsbygoogle?: unknown[];
+  }
+}
+
 type Props = {
   readonly slot: string;
   readonly className?: string;
@@ -14,9 +21,7 @@ export function AdBanner({ slot, className }: Props) {
     if (pushed.current) return;
     pushed.current = true;
     try {
-      ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push(
-        {},
-      );
+      (window.adsbygoogle = window.adsbygoogle ?? []).push({});
     } catch {
       // adsbygoogle not loaded
     }

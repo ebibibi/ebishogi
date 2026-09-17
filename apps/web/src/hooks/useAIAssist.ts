@@ -120,25 +120,77 @@ function classifyMove(
   return { grade: "blunder", label: "大悪手！" };
 }
 
+type SearchState = {
+  /** この結果がどの局面・設定に対するものかの識別子。 */
+  readonly key: string;
+  readonly candidates: readonly CandidateMove[];
+  /** 盤上に矢印を出してよい候補手の順位。時間経過で 3→2→1 と増える。 */
+  readonly visibleRanks: ReadonlySet<number>;
+};
+
+const EMPTY_SEARCH: SearchState = {
+  key: "",
+  candidates: [],
+  visibleRanks: new Set(),
+};
+
+type ThinkingState = {
+  /** この経過時間がどの局面・状態に対するものかの識別子。 */
+  readonly key: string;
+  /** エンジンが考え始めてからの秒数。 */
+  readonly elapsed: number;
+};
+
+const NOT_THINKING: ThinkingState = { key: "", elapsed: 0 };
+
+/** 現在の key に紐づけて探索結果を更新する（key が変わっていたら作り直す）。 */
+function withSearch(
+  prev: SearchState,
+  key: string,
+  patch: Partial<Omit<SearchState, "key">>,
+): SearchState {
+  const base = prev.key === key ? prev : EMPTY_SEARCH;
+  return { ...base, key, ...patch };
+}
+
 export function useAIAssist(
   game: GameState,
   active: boolean,
   settings: GameSettings,
 ): AIAssistResult {
-  const [candidates, setCandidates] = useState<readonly CandidateMove[]>([]);
-  const [visibleRanks, setVisibleRanks] = useState<Set<number>>(new Set());
+  const [search, setSearch] = useState<SearchState>(EMPTY_SEARCH);
   const [badMoveAlert, setBadMoveAlert] = useState<BadMoveAlert | null>(null);
   const [moveEvaluation, setMoveEvaluation] = useState<MoveEvaluation | null>(
     null,
   );
   const [engineReady, setEngineReady] = useState(false);
   const [currentEval, setCurrentEval] = useState<number | null>(null);
-  const [thinkingElapsed, setThinkingElapsed] = useState(0);
+  const [thinking, setThinking] = useState<ThinkingState>(NOT_THINKING);
   const prevEvalRef = useRef<number | null>(null);
   const playerCandidatesRef = useRef<readonly CandidateMove[]>([]);
   const preMoveSfenRef = useRef<string | null>(null);
   const searchCompletedRef = useRef(false);
   const thinkingStartRef = useRef<number | null>(null);
+
+  // 探索結果は「どの局面・設定に対するものか」を key で束ねて持つ。
+  // 局面が変わったら effect 内で空に戻すのではなく、key 不一致で空として読む。
+  // （engineReady などの宣言より後で組み立てる必要がある）
+  const searchKey = [
+    game.sfen,
+    game.isEnd,
+    active,
+    engineReady,
+    settings.arrowDelay3rd,
+    settings.arrowDelay2nd,
+    settings.arrowDelay1st,
+    settings.showHints,
+  ].join("|");
+  // 思考時間も同じく key 付きで持ち、対象外の局面では 0 として読む
+  const thinkingKey = [game.sfen, game.isEnd, active, engineReady].join("|");
+  const thinkingElapsed = thinking.key === thinkingKey ? thinking.elapsed : 0;
+  const currentSearch = search.key === searchKey ? search : EMPTY_SEARCH;
+  const candidates = currentSearch.candidates;
+  const visibleRanks = currentSearch.visibleRanks;
 
   useEffect(() => {
     let cancelled = false;
@@ -154,8 +206,6 @@ export function useAIAssist(
   }, []);
 
   useEffect(() => {
-    setCandidates([]);
-    setVisibleRanks(new Set());
     if (!active || !engineReady || game.isEnd) return;
 
     let cancelled = false;
@@ -171,7 +221,9 @@ export function useAIAssist(
         timeMs: 5000,
         onInfo: (infoCandidates) => {
           if (cancelled) return;
-          setCandidates(infoCandidates);
+          setSearch((prev) =>
+            withSearch(prev, searchKey, { candidates: infoCandidates }),
+          );
           playerCandidatesRef.current = infoCandidates;
           if (infoCandidates.length > 0) {
             setCurrentEval(infoCandidates[0].score);
@@ -181,7 +233,9 @@ export function useAIAssist(
       })
       .then((result) => {
         if (cancelled) return;
-        setCandidates(result.candidates);
+        setSearch((prev) =>
+          withSearch(prev, searchKey, { candidates: result.candidates }),
+        );
         playerCandidatesRef.current = result.candidates;
         searchCompletedRef.current = true;
         if (result.candidates.length > 0) {
@@ -193,17 +247,41 @@ export function useAIAssist(
 
     timers.push(
       setTimeout(() => {
-        if (!cancelled) setVisibleRanks((prev) => new Set([...prev, 3]));
+        if (cancelled) return;
+        setSearch((prev) =>
+          withSearch(prev, searchKey, {
+            visibleRanks: new Set([
+              ...(prev.key === searchKey ? prev.visibleRanks : []),
+              3,
+            ]),
+          }),
+        );
       }, settings.arrowDelay3rd * 1000),
     );
     timers.push(
       setTimeout(() => {
-        if (!cancelled) setVisibleRanks((prev) => new Set([...prev, 2]));
+        if (cancelled) return;
+        setSearch((prev) =>
+          withSearch(prev, searchKey, {
+            visibleRanks: new Set([
+              ...(prev.key === searchKey ? prev.visibleRanks : []),
+              2,
+            ]),
+          }),
+        );
       }, settings.arrowDelay2nd * 1000),
     );
     timers.push(
       setTimeout(() => {
-        if (!cancelled) setVisibleRanks((prev) => new Set([...prev, 1]));
+        if (cancelled) return;
+        setSearch((prev) =>
+          withSearch(prev, searchKey, {
+            visibleRanks: new Set([
+              ...(prev.key === searchKey ? prev.visibleRanks : []),
+              1,
+            ]),
+          }),
+        );
       }, settings.arrowDelay1st * 1000),
     );
 
@@ -216,6 +294,7 @@ export function useAIAssist(
     game,
     active,
     engineReady,
+    searchKey,
     settings.arrowDelay3rd,
     settings.arrowDelay2nd,
     settings.arrowDelay1st,
@@ -224,23 +303,24 @@ export function useAIAssist(
 
   useEffect(() => {
     if (!active || !engineReady || game.isEnd) {
+      // key が一致しなくなるので thinkingElapsed は 0 として読まれる
       thinkingStartRef.current = null;
-      setThinkingElapsed(0);
       return;
     }
     thinkingStartRef.current = performance.now();
     let raf: number;
     const tick = () => {
       if (thinkingStartRef.current !== null) {
-        setThinkingElapsed(
-          (performance.now() - thinkingStartRef.current) / 1000,
-        );
+        setThinking({
+          key: thinkingKey,
+          elapsed: (performance.now() - thinkingStartRef.current) / 1000,
+        });
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, engineReady, game]);
+  }, [active, engineReady, game, thinkingKey]);
 
   const arrows = useMemo(() => {
     if (!settings.showHints) return [];

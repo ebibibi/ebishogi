@@ -18,14 +18,15 @@
  */
 import { Shogi } from "shogiops/variant/shogi";
 import { parseSfen } from "shogiops/sfen";
-import { makeUsi, parseUsi, squareRank } from "shogiops/util";
+import { makeUsi, squareRank } from "shogiops/util";
 import type { MoveOrDrop, Piece, Role, Color, Square } from "shogiops/types";
 import { createReadStream, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const WORK = "/home/ebi/tsume_work";
+// やねうらデータ(mate{N}.sfen)の置き場。TSUME_WORK で差し替え可能
+const WORK = process.env.TSUME_WORK ?? "/home/ebi/tsume_work";
 const OUT = join(
   dirname(fileURLToPath(import.meta.url)),
   "../src/lib/tsume/problems.json",
@@ -38,7 +39,7 @@ const WANT = Number(process.argv.find((a) => /^\d+$/.test(a))) || 1000;
 const SETTINGS = [
   { mateIn: 3, maxHand: 8, scanLimit: 300_000, nodeLimit: 30_000 },
   { mateIn: 5, maxHand: 7, scanLimit: 800_000, nodeLimit: 80_000 },
-  { mateIn: 7, maxHand: 5, scanLimit: 400_000, nodeLimit: 12_000 },
+  { mateIn: 7, maxHand: 4, scanLimit: 30_000, nodeLimit: 100_000 },
 ];
 let CUR_LIMIT = 100_000;
 
@@ -109,48 +110,47 @@ function applied(pos: Shogi, move: MoveOrDrop): Shogi {
   next.play(move);
   return next;
 }
-function attackerShortestMate(pos: Shogi, depth: number): number {
-  if (depth < 1) return -1;
-  let best = -1;
+// 「depth 手以内に詰むか」だけを判定し、詰み筋が 1 本見つかった時点で打ち切る。
+// 最短手数を求めて全王手を読み切る方式より桁違いに軽い（7手詰を現実的な時間で扱える）。
+function attackerMatesWithin(pos: Shogi, depth: number): boolean {
+  if (depth < 1) return false;
   for (const move of legalMoves(pos)) {
     const next = applied(pos, move);
     if (!next.isCheck()) continue;
-    if (!next.hasDests()) return 1;
-    if (depth >= 3) {
-      const reply = defenderLongestMate(next, depth - 1);
-      if (reply >= 0) { const total = reply + 1; if (best < 0 || total < best) best = total; }
-    }
+    if (!next.hasDests()) return true;
+    if (depth >= 3 && allDefensesMated(next, depth - 1)) return true;
   }
-  return best;
+  return false;
 }
-function defenderLongestMate(pos: Shogi, depth: number): number {
-  let longest = -1, hasMove = false;
+function allDefensesMated(pos: Shogi, depth: number): boolean {
+  let hasMove = false;
   for (const move of legalMoves(pos)) {
     hasMove = true;
-    const next = applied(pos, move);
-    const mate = attackerShortestMate(next, depth - 1);
-    if (mate < 0) return -1;
-    const total = mate + 1;
-    if (total > longest) longest = total;
+    if (!attackerMatesWithin(applied(pos, move), depth - 1)) return false;
   }
-  return hasMove ? longest : -1;
+  return hasMove;
 }
-function findMatingMoves(pos: Shogi, depth: number): string[] {
-  const result: string[] = [];
+/** depth 手以内に詰ませる攻め方の初手（最初に見つかったもの）。無ければ null。 */
+function findMatingMove(pos: Shogi, depth: number): MoveOrDrop | null {
   for (const move of legalMoves(pos)) {
     const next = applied(pos, move);
     if (!next.isCheck()) continue;
-    if (!next.hasDests()) { result.push(makeUsi(move)); continue; }
-    if (depth >= 3 && defenderLongestMate(next, depth - 1) >= 0) result.push(makeUsi(move));
+    if (!next.hasDests()) return move;
+    if (depth >= 3 && allDefensesMated(next, depth - 1)) return move;
   }
-  return result;
+  return null;
 }
+/** 攻め方の手番の局面が何手で詰むか（1,3,..,maxDepth のうち最短）。詰まなければ -1。 */
+function shortestMate(pos: Shogi, maxDepth: number): number {
+  for (let d = 1; d <= maxDepth; d += 2) if (attackerMatesWithin(pos, d)) return d;
+  return -1;
+}
+/** 最も長く粘る受け（逃れがあれば出題ミスとして null）。 */
 function chooseDefense(pos: Shogi, depth: number): MoveOrDrop | null {
   let best: MoveOrDrop | null = null, bestLen = -1;
   for (const move of legalMoves(pos)) {
-    const next = applied(pos, move);
-    const mate = attackerShortestMate(next, depth - 1);
-    if (mate < 0) return move; // 逃れ → 出題ミス
+    const mate = shortestMate(applied(pos, move), depth - 1);
+    if (mate < 0) return null;
     if (mate > bestLen) { bestLen = mate; best = move; }
   }
   return best;
@@ -180,16 +180,14 @@ function solveLine(sfen: string, mateIn: number): string[] | null {
   if (!pos0 || pos0.turn !== "sente" || pos0.isCheck()) return null;
   NODES = 0;
   try {
+    if (mateIn >= 3 && attackerMatesWithin(pos0, mateIn - 2)) return null; // より短い詰みがある
     let pos = pos0;
     let depth = mateIn;
     const moves: string[] = [];
     for (let step = 0; step < mateIn; step++) {
-      const firsts = findMatingMoves(pos, depth);
-      if (firsts.length === 0) return null;
-      const attack = firsts[0];
-      const am = parseUsi(attack);
+      const am = findMatingMove(pos, depth);
       if (!am) return null;
-      moves.push(attack);
+      moves.push(makeUsi(am));
       pos = applied(pos, am);
       if (isMated(pos)) return moves; // 詰み上がり
       const def = chooseDefense(pos, depth - 1);
@@ -260,10 +258,11 @@ if (process.argv.includes("--fixture-only")) {
   writeFileSync(OUT, formatJson(reorder(data)));
   console.error(`整形完了: 計=${data.length}`);
 } else if (process.argv.includes("--append-mate7")) {
-  // 既存(3/5手)を保ったまま、7手だけ超軽量設定で取れるだけ追記する
+  // 既存(3/5手)を保ったまま、7手だけ生成して追記する
   const existing = JSON.parse(readFileSync(OUT, "utf8")).problems as Problem[];
   const base = existing.filter((p) => p.mateIn !== 7);
-  const m7 = await build(7, 4, 150_000, 8_000);
+  const s7 = SETTINGS.find((s) => s.mateIn === 7)!;
+  const m7 = await build(7, s7.maxHand, s7.scanLimit, s7.nodeLimit);
   writeFileSync(OUT, formatJson(reorder([...base, ...m7])));
   console.error(`mate7追加: ${m7.length}問`);
 } else {

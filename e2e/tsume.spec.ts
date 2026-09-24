@@ -37,6 +37,7 @@ test.describe("実践詰将棋モード", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "3手詰め" })).toBeVisible();
     await expect(page.getByRole("button", { name: "5手詰め" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "7手詰め" })).toBeVisible();
     // やねうらお氏へのクレジット
     await expect(page.getByText(/やねうらお/)).toBeVisible();
   });
@@ -95,6 +96,13 @@ test.describe("実践詰将棋モード", () => {
   test("5手詰めタブに切り替えられる", async ({ page }) => {
     await page.goto("/tsume");
     await page.getByRole("button", { name: "5手詰め" }).click();
+    await page.getByRole("button", { name: /1–10/ }).first().click();
+    await expect(page.getByTestId("game-canvas")).toBeVisible();
+  });
+
+  test("7手詰めタブに切り替えられる", async ({ page }) => {
+    await page.goto("/tsume");
+    await page.getByRole("button", { name: "7手詰め" }).click();
     await page.getByRole("button", { name: /1–10/ }).first().click();
     await expect(page.getByTestId("game-canvas")).toBeVisible();
   });

@@ -6,8 +6,8 @@
  *
  * 出典: やねうら王が公開した詰将棋500万問（パブリックドメイン・SFEN形式）
  *   https://yaneuraou.yaneu.com/2020/12/25/christmas-present/
- * から 3・5 手詰を手数順に取り込んだ実戦由来の問題（駒余りあり＝実践詰将棋）。
- * 7手詰は scripts/build-tsume-problems.mts --append-mate7 で後日追加予定。
+ * から 3・5・7 手詰を手数順に取り込んだ実戦由来の問題（駒余りあり＝実践詰将棋）。
+ * 7手詰は scripts/build-tsume-problems.mts --append-mate7 で追記したもの。
  */
 import data from "./problems.json";
 
@@ -34,5 +34,4 @@ export function problemIndex(problem: TsumeProblem): number {
   return problemsByMate(problem.mateIn).findIndex((p) => p.id === problem.id) + 1;
 }
 
-// 7手詰はソルバーでの正解手順事前計算が重く生成に時間がかかるため後日追加予定。
-export const MATE_LEVELS: readonly number[] = [3, 5];
+export const MATE_LEVELS: readonly number[] = [3, 5, 7];

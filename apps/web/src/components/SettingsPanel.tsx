@@ -1,6 +1,7 @@
 "use client";
 
-import { CPU_LEVELS, type GameSettings } from "@/hooks/useSettings";
+import { type GameSettings } from "@/hooks/useSettings";
+import { CPU_LEVELS, describeCpuLevel, getCpuLevel } from "@/lib/cpu-levels";
 
 type Props = {
   settings: GameSettings;
@@ -79,7 +80,7 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-sm text-zinc-400">強さ</span>
               <span className="text-sm font-bold text-amber-400">
-                {CPU_LEVELS[settings.cpuLevel]?.name}
+                {getCpuLevel(settings.cpuLevel).name}
               </span>
             </div>
             <input
@@ -92,7 +93,7 @@ export function SettingsPanel({ settings, onUpdate, onReset, onClose }: Props) {
               className="w-full accent-amber-500 h-1.5"
             />
             <p className="text-xs text-zinc-500 mt-1">
-              {CPU_LEVELS[settings.cpuLevel]?.description}
+              {describeCpuLevel(getCpuLevel(settings.cpuLevel))}
             </p>
           </div>
           <Slider

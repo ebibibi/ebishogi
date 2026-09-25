@@ -5,7 +5,12 @@ import type { MoveOrDrop, Color, Square, Role, Piece } from "shogiops/types";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useAIAssist, EVAL_DISPLAY_MS } from "@/hooks/useAIAssist";
 import { useGameHistory } from "@/hooks/useGameHistory";
-import { useSettings, CPU_LEVELS } from "@/hooks/useSettings";
+import { useSettings } from "@/hooks/useSettings";
+import {
+  getCpuLevel,
+  searchOptionsFor,
+  TSUME_DEFENDER_SEARCH,
+} from "@/lib/cpu-levels";
 import { useSound } from "@/hooks/useSound";
 import { useTimer } from "@/hooks/useTimer";
 import { makeUsi } from "shogiops/util";
@@ -631,16 +636,11 @@ export function GameView({
     const run = async () => {
       try {
         const engine = getEngine();
-        // 詰将棋では受け方を最強固定（最善で粘る＝正しい受け）
-        const level = tsumeRef.current
-          ? CPU_LEVELS[CPU_LEVELS.length - 1]
-          : (CPU_LEVELS[settings.cpuLevel] ??
-            CPU_LEVELS[CPU_LEVELS.length - 1]);
+        // 詰将棋の受け方は対局レベルに関係なく最善手1本で応じる（最善で粘る＝正しい受け）
+        const level = getCpuLevel(settings.cpuLevel);
         const result = await engine.search(
           game.sfen,
-          level.depth > 0
-            ? { multiPV: level.candidates, depth: level.depth }
-            : { multiPV: 1, timeMs: 500 },
+          tsumeRef.current ? TSUME_DEFENDER_SEARCH : searchOptionsFor(level),
         );
         if (abortRef.current) return;
 
@@ -677,7 +677,11 @@ export function GameView({
         if (abortRef.current) return;
 
         let chosenIdx = 0;
-        if (level.candidates > 1 && result.candidates.length > 1) {
+        if (
+          !tsumeRef.current &&
+          level.candidates > 1 &&
+          result.candidates.length > 1
+        ) {
           chosenIdx = Math.floor(
             Math.random() *
               Math.min(level.candidates, result.candidates.length),

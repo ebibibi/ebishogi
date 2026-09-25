@@ -1,6 +1,6 @@
 "use client";
 
-import { CPU_LEVELS } from "@/hooks/useSettings";
+import { CPU_LEVELS, describeCpuLevel, getCpuLevel } from "@/lib/cpu-levels";
 import { AdBanner } from "@/components/AdBanner";
 import { AD_SLOTS } from "@/lib/ad-slots";
 
@@ -18,7 +18,7 @@ export function LevelSelectScreen({
   onStart,
   onBack,
 }: Props) {
-  const level = CPU_LEVELS[cpuLevel] ?? CPU_LEVELS[CPU_LEVELS.length - 1];
+  const level = getCpuLevel(cpuLevel);
 
   return (
     <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-center p-8">
@@ -29,7 +29,7 @@ export function LevelSelectScreen({
           <p className="text-5xl font-bold text-amber-400 mb-2">
             {level.name}
           </p>
-          <p className="text-zinc-400">{level.description}</p>
+          <p className="text-zinc-400">{describeCpuLevel(level)}</p>
         </div>
 
         <div className="w-full">

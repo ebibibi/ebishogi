@@ -4,30 +4,7 @@ import { useCallback } from "react";
 
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 
-export type CpuLevel = {
-  readonly name: string;
-  readonly description: string;
-  readonly depth: number;
-  readonly candidates: number;
-};
-
-export const CPU_LEVELS: readonly CpuLevel[] = [
-  { name: "10級", description: "ゆるく遊べる", depth: 1, candidates: 3 },
-  { name: "9級", description: "のんびり対局", depth: 1, candidates: 3 },
-  { name: "8級", description: "少し手ごたえあり", depth: 2, candidates: 3 },
-  { name: "7級", description: "駒の使い方を学ぶ", depth: 2, candidates: 2 },
-  { name: "6級", description: "攻めの形がわかる", depth: 3, candidates: 2 },
-  { name: "5級", description: "基本が身につく", depth: 3, candidates: 2 },
-  { name: "4級", description: "中盤力がつく", depth: 4, candidates: 1 },
-  { name: "3級", description: "戦いを楽しめる", depth: 5, candidates: 1 },
-  { name: "2級", description: "終盤が鋭くなる", depth: 6, candidates: 1 },
-  { name: "1級", description: "読みが深くなる", depth: 8, candidates: 1 },
-  { name: "初段", description: "本格的な将棋", depth: 10, candidates: 1 },
-  { name: "二段", description: "隙のない指し回し", depth: 12, candidates: 1 },
-  { name: "三段", description: "かなり手強い", depth: 0, candidates: 1 },
-  { name: "四段", description: "アマ強豪クラス", depth: 0, candidates: 1 },
-  { name: "最強", description: "容赦なし", depth: 0, candidates: 1 },
-];
+export { CPU_LEVELS, type CpuLevel } from "@/lib/cpu-levels";
 
 export type GameSettings = {
   arrowDelay3rd: number;

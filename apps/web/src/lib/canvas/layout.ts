@@ -382,6 +382,14 @@ export function getActionButtons(layout: CanvasLayout): ButtonDef[] {
       style: "default",
     },
     {
+      label: "棋譜",
+      action: "kifu",
+      w: 40,
+      disabled: false,
+      hidden: false,
+      style: "default",
+    },
+    {
       label: "トップへ",
       action: "back",
       w: 56,

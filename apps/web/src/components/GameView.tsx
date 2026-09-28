@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { MoveOrDrop, Color, Square, Role, Piece } from "shogiops/types";
+import { KifuPanel } from "@/components/KifuPanel";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useAIAssist, EVAL_DISPLAY_MS } from "@/hooks/useAIAssist";
 import { useGameHistory } from "@/hooks/useGameHistory";
@@ -23,6 +24,12 @@ import {
   mustPromote,
 } from "@/lib/shogi-game";
 import { getEngine } from "@/lib/engine";
+import {
+  recordFromStates,
+  replayRecord,
+  type GameRecord,
+} from "@/lib/kifu";
+import { loadSavedGame, saveGame } from "@/lib/saved-game";
 import { calcLayout, type CanvasLayout } from "@/lib/canvas/layout";
 import { loadPieceImages } from "@/lib/canvas/images";
 import {
@@ -76,9 +83,18 @@ export function GameView({
     goToLatest,
     goTo,
     resumeFromCurrent,
+    load,
     reset,
     evalHistory,
-  } = useGameHistory(initialSfen);
+    entries,
+  } = useGameHistory(initialSfen, tsume ? undefined : loadSavedGame);
+
+  // CPU対局は直前の1局を自動保存し、リロード後に続きから指せるようにする
+  // （詰将棋は問題ごとに始め直すので保存しない）。
+  const persist = !tsume;
+  useEffect(() => {
+    if (persist) saveGame(entries.map((e) => e.state));
+  }, [persist, entries]);
 
   // 最新の tsume コールバックを ref で保持し、useEffect/useCallback の依存から外す。
   // ref への書き込みはレンダー中ではなくコミット後に行う（読むのは非同期処理の中だけ）。
@@ -97,6 +113,7 @@ export function GameView({
   const [aiThinking, setAiThinking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showKifu, setShowKifu] = useState(false);
   const abortRef = useRef(false);
   const aiThinkingRef = useRef(false);
   const lastPlayerMoveUsiRef = useRef<string | null>(null);
@@ -614,6 +631,23 @@ export function GameView({
     setShowPromotion(null);
   }, [reset, resetTimer]);
 
+  const handleLoadKifu = useCallback(
+    (record: GameRecord) => {
+      const replay = replayRecord(record);
+      if (!replay.ok) return;
+      abortRef.current = true;
+      aiThinkingRef.current = false;
+      getEngine().cancelSearch();
+      load(replay.value, 0);
+      resetTimer();
+      setMessage(null);
+      setAiThinking(false);
+      setShowPromotion(null);
+      setShowKifu(false);
+    },
+    [load, resetTimer],
+  );
+
   const handleTakeBack = useCallback(() => {
     abortRef.current = true;
     aiThinkingRef.current = false;
@@ -815,6 +849,9 @@ export function GameView({
             case "settings":
               setShowSettings(true);
               break;
+            case "kifu":
+              setShowKifu(true);
+              break;
             case "back":
               onBack();
               break;
@@ -874,6 +911,8 @@ export function GameView({
         data-end={game.isEnd ? "1" : "0"}
         data-eval={currentEval ?? ""}
         data-arrows={arrows.length}
+        data-history-length={entries.length}
+        data-view-index={viewIndex}
         style={{ display: "none" }}
         aria-hidden="true"
       />
@@ -883,6 +922,14 @@ export function GameView({
           onUpdate={updateSettings}
           onReset={resetSettings}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+      {showKifu && (
+        <KifuPanel
+          record={recordFromStates(entries.map((e) => e.state))}
+          meta={{ sente: "あなた", gote: `CPU（${getCpuLevel(settings.cpuLevel).name}）` }}
+          onLoad={handleLoadKifu}
+          onClose={() => setShowKifu(false)}
         />
       )}
     </>

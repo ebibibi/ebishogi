@@ -20,10 +20,31 @@ function createInitialState(sfen?: string): HistoryState {
   };
 }
 
-export function useGameHistory(initialSfen?: string) {
-  const [hist, setHist] = useState<HistoryState>(() =>
-    createInitialState(initialSfen),
-  );
+/** 読み込んだ棋譜などの局面列から履歴を作る。評価値は持たない。 */
+function stateFromGames(
+  states: readonly GameState[],
+  viewIndex: number,
+): HistoryState {
+  return {
+    entries: states.map((state) => ({ state, evalCp: null })),
+    viewIndex: Math.max(0, Math.min(viewIndex, states.length - 1)),
+  };
+}
+
+/**
+ * @param restore 初回だけ呼ばれ、局面列を返せばその最新局面から再開する
+ *   （リロード前の対局の復元用）。null なら initialSfen から始める。
+ */
+export function useGameHistory(
+  initialSfen?: string,
+  restore?: () => readonly GameState[] | null,
+) {
+  const [hist, setHist] = useState<HistoryState>(() => {
+    const restored = restore?.();
+    return restored && restored.length > 0
+      ? stateFromGames(restored, restored.length - 1)
+      : createInitialState(initialSfen);
+  });
 
   const current = hist.entries[hist.viewIndex];
   const isLive = hist.viewIndex === hist.entries.length - 1;
@@ -86,6 +107,14 @@ export function useGameHistory(initialSfen?: string) {
     }));
   }, []);
 
+  /** 局面列で履歴を置き換える（棋譜の読込）。viewIndex の局面を表示する。 */
+  const load = useCallback(
+    (states: readonly GameState[], viewIndex = 0) => {
+      if (states.length > 0) setHist(stateFromGames(states, viewIndex));
+    },
+    [],
+  );
+
   const reset = useCallback(
     () => setHist(createInitialState(initialSfen)),
     [initialSfen],
@@ -111,6 +140,7 @@ export function useGameHistory(initialSfen?: string) {
     goToLatest,
     goTo,
     resumeFromCurrent,
+    load,
     reset,
     evalHistory,
   };

@@ -29,6 +29,9 @@ jobs:
 
       - run: pnpm lint
 
+      - name: Run unit tests
+        run: pnpm --filter web run test
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 

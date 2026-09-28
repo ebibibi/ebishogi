@@ -638,6 +638,8 @@ export function GameView({
       abortRef.current = true;
       aiThinkingRef.current = false;
       getEngine().cancelSearch();
+      // 前の対局で指した手を、読み込んだ局面の手として評価しないようにする
+      lastPlayerMoveUsiRef.current = null;
       load(replay.value, 0);
       resetTimer();
       setMessage(null);

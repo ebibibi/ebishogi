@@ -105,7 +105,8 @@ export default function Home() {
         </button>
 
         <p className="text-xs text-zinc-500 text-center">
-          初回はAIエンジン（約200KB）のダウンロードに数秒かかります。
+          AI評価関数につようら王11miniを採用しています。
+          初回はエンジンと評価データ（約10MB）をダウンロードします。
           <br />
           対局はすべてブラウザ内で処理され、サーバーに情報は送信されません。
         </p>

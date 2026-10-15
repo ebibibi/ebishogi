@@ -1,0 +1,27 @@
+diff --git a/source/Makefile b/source/Makefile
+index e862b78..4a4d16c 100644
+--- a/source/Makefile
++++ b/source/Makefile
+@@ -243,7 +243,8 @@ else
+ 		LDFLAGS += --pre-js wasm_pre.js
+ 		# LDFLAGS += --preload-file eval/nn.bin
+ 		LDFLAGS += -s MODULARIZE=1 -s EXPORT_NAME="$(EM_EXPORT_NAME)" -s ENVIRONMENT=web,worker,node
+-		LDFLAGS += -s PTHREAD_POOL_SIZE=32
++		LDFLAGS += -s "INCOMING_MODULE_JS_API=['print','printErr','postRun','locateFile']"
++		LDFLAGS += -s PTHREAD_POOL_SIZE=4
+ 		# -s PTHREAD_POOL_SIZE_STRICT=32
+ 		LDFLAGS += -s FILESYSTEM=1 -s EXIT_RUNTIME=0 -s "EXPORTED_RUNTIME_METHODS=['FS','ccall']"
+ 		LDFLAGS += -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=$(EM_INITIAL_MEMORY_SIZE) -s MAXIMUM_MEMORY=4294967296
+diff --git a/source/engine.cpp b/source/engine.cpp
+index 31c39ce..165f793 100644
+--- a/source/engine.cpp
++++ b/source/engine.cpp
+@@ -135,7 +135,7 @@ void Engine::add_options() {
+     options.add(  //
+       // 📝 やねうら王では default threadを4に変更する。
+       //     過去にdefault設定のまま対局させて「やねうら王弱い」という人がいたため。
+-      "Threads", Option(4, 1, MaxThreads, [this](const Option&) {
++      "Threads", Option(1, 1, MaxThreads, [this](const Option&) {
+           resize_threads();
+           return thread_allocation_information_as_string();
+       }));

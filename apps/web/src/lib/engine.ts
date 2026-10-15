@@ -81,34 +81,48 @@ class ShogiEngine {
   private tempListeners: ((line: string) => void)[] = [];
 
   async init(): Promise<void> {
-    if (this.worker) return;
     if (this.initPromise) return this.initPromise;
-    this.initPromise = this.doInit();
+    this.initPromise = this.doInit().catch((error: unknown) => {
+      this.worker?.terminate();
+      this.worker = null;
+      this.initPromise = null;
+      this.tempListeners = [];
+      throw error;
+    });
     return this.initPromise;
   }
 
   private async doInit(): Promise<void> {
-    const worker = new Worker("/engine/engine-worker.js");
+    const worker = new Worker("/engine/engine-worker.js?v=tuyouraou11mini-20261015");
     this.worker = worker;
 
     await new Promise<void>((resolve, reject) => {
+      const onError = (event: ErrorEvent) => {
+        cleanup();
+        reject(new Error(event.message || "Engine worker failed"));
+      };
+      const cleanup = () => {
+        clearTimeout(timeout);
+        worker.removeEventListener("message", handler);
+        worker.removeEventListener("error", onError);
+      };
       const timeout = setTimeout(() => {
+        cleanup();
         reject(new Error("Engine worker init timeout"));
-      }, 30000);
+      }, 60000);
 
       const handler = (e: MessageEvent) => {
         if (e.data.type === "ready") {
-          clearTimeout(timeout);
-          worker.removeEventListener("message", handler);
+          cleanup();
           resolve();
         } else if (e.data.type === "error") {
-          clearTimeout(timeout);
-          worker.removeEventListener("message", handler);
+          cleanup();
           reject(new Error(e.data.message));
         }
       };
 
       worker.addEventListener("message", handler);
+      worker.addEventListener("error", onError);
     });
 
     worker.addEventListener("message", (e: MessageEvent) => {
